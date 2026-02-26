@@ -1,11 +1,18 @@
 /*============================================================================
- * main.c — Remote node entry point
+ * main.c — Dual-role modem entry point
  *
- * Project : 169.4 MHz RF link  (CC1120 + PIC)
- * Node    : REMOTE  (PC-connected controller)
- *
- * Flow:
- *   PC <-> UART <-> PIC <-> SPI <-> CC1120 <-> RF <-> Robot
+ * How to run:
+ * - Build with MODEM_ROLE=MODEM_ROLE_REMOTE for the PC-connected modem.
+ *   UART wiring: USB-UART dongle <-> modem UART (framed protocol in protocol/).
+ * - Build with MODEM_ROLE=MODEM_ROLE_ROBOT for the SBC-connected modem.
+ *   UART wiring: modem UART <-> SBC tty running getty/login shell.
+ * - Session flow:
+ *   1) PC sends SCAN_START to remote modem and receives SCAN_RESULT.
+ *   2) PC sends CONNECT(robot_id), remote sends RF CONNECT_REQ, robot replies
+ *      CONNECT_OK, remote reports CONNECTED to PC.
+ *   3) In session: DATA_TX bytes are tunneled over RF DATA to robot UART; RF
+ *      DATA from robot UART is reported to PC as DATA_RX; STATS are pushed and
+ *      available via GET_STATS.
  *===========================================================================*/
 #include "config.h"
 #include "board/board.h"

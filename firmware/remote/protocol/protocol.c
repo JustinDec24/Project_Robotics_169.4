@@ -1,5 +1,5 @@
 /*============================================================================
- * protocol/protocol.c — UART binary framing implementation
+ * protocol/protocol.c — Framed UART protocol implementation
  *===========================================================================*/
 #include "protocol.h"
 #include "../drivers/uart.h"
@@ -33,7 +33,7 @@ bool protocol_decoder_feed(protocol_decoder_t *dec, uint8_t byte_in,
         break;
 
     case PARSE_LEN:
-        if (byte_in == 0 || byte_in > (MAX_UART_PAYLOAD + 1)) {
+        if (byte_in == 0u || byte_in > (MAX_UART_PAYLOAD + 1u)) {
             dec->state = PARSE_SYNC1;
         } else {
             dec->len_field = byte_in;
@@ -57,13 +57,13 @@ bool protocol_decoder_feed(protocol_decoder_t *dec, uint8_t byte_in,
         dec->state = PARSE_SYNC1;
 
         if (crc == byte_in) {
-            out->cmd_type    = dec->buf[0];
-            out->payload_len = dec->len_field - 1;
-            if (out->payload_len > 0)
+            out->msg_type    = dec->buf[0];
+            out->payload_len = (uint8_t)(dec->len_field - 1u);
+            if (out->payload_len > 0u)
                 memcpy(out->payload, &dec->buf[1], out->payload_len);
             return true;
         }
-        /* CRC mismatch — frame dropped silently */
+        /* CRC mismatch: drop frame and resync on next frame header. */
         break;
     }
 
@@ -77,20 +77,25 @@ bool protocol_decoder_feed(protocol_decoder_t *dec, uint8_t byte_in,
 
 /* ===== Encoder ============================================================*/
 
-void protocol_send_frame(uint8_t cmd_type,
+void protocol_send_frame(uint8_t msg_type,
                          const uint8_t *payload, uint8_t payload_len)
 {
-    uint8_t len_field = 1 + payload_len;    /* CMD_TYPE + payload */
+    if (payload_len > MAX_UART_PAYLOAD) {
+        payload_len = MAX_UART_PAYLOAD;
+    }
+
+    /* LEN covers TYPE + payload bytes. */
+    uint8_t len_field = (uint8_t)(1u + payload_len);
 
     uart_write(UART_SYNC1);
     uart_write(UART_SYNC2);
     uart_write(len_field);
 
-    /* Compute CRC over LEN + CMD_TYPE + PAYLOAD */
+    /* CRC covers LEN + TYPE + PAYLOAD. */
     uint8_t crc = crc8_update(0x00, len_field);
-    crc = crc8_update(crc, cmd_type);
+    crc = crc8_update(crc, msg_type);
 
-    uart_write(cmd_type);
+    uart_write(msg_type);
 
     for (uint8_t i = 0; i < payload_len; i++) {
         uart_write(payload[i]);
@@ -100,25 +105,47 @@ void protocol_send_frame(uint8_t cmd_type,
     uart_write(crc);
 }
 
-/* ===== Convenience senders ================================================*/
+/* ===== Convenience senders (Remote -> PC) =================================*/
+
+void protocol_send_scan_result(uint8_t robot_id, uint8_t rssi, uint8_t age_100ms)
+{
+    uint8_t buf[3];
+    buf[0] = robot_id;
+    buf[1] = rssi;
+    buf[2] = age_100ms;
+    protocol_send_frame(UART_MSG_SCAN_RESULT, buf, 3);
+}
+
+void protocol_send_connected(uint8_t robot_id)
+{
+    protocol_send_frame(UART_MSG_CONNECTED, &robot_id, 1);
+}
+
+void protocol_send_disconnected(uint8_t reason)
+{
+    protocol_send_frame(UART_MSG_DISCONNECTED, &reason, 1);
+}
+
+void protocol_send_stats(uint8_t rssi_avg, uint8_t per_pct, uint16_t rtt_ms)
+{
+    uint8_t buf[4];
+    buf[0] = rssi_avg;
+    buf[1] = per_pct;
+    buf[2] = (uint8_t)(rtt_ms & 0xFFu);
+    buf[3] = (uint8_t)((rtt_ms >> 8) & 0xFFu);
+    protocol_send_frame(UART_MSG_STATS, buf, 4);
+}
+
+void protocol_send_data_rx(const uint8_t *data, uint8_t len)
+{
+    protocol_send_frame(UART_MSG_DATA_RX, data, len);
+}
 
 void protocol_send_log(const char *text)
 {
     uint8_t len = 0;
-    while (text[len] != '\0' && len < MAX_UART_PAYLOAD)
+    while (text[len] != '\0' && len < MAX_UART_PAYLOAD) {
         len++;
-    protocol_send_frame(EVT_LOG, (const uint8_t *)text, len);
-}
-
-void protocol_send_ack_status(uint8_t seq, uint8_t result)
-{
-    uint8_t buf[2];
-    buf[0] = seq;
-    buf[1] = result;
-    protocol_send_frame(EVT_ACK_STATUS, buf, 2);
-}
-
-void protocol_send_telemetry(const uint8_t *data, uint8_t len)
-{
-    protocol_send_frame(EVT_TELEMETRY, data, len);
+    }
+    protocol_send_frame(UART_MSG_LOG, (const uint8_t *)text, len);
 }

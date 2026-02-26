@@ -3,8 +3,8 @@
  *
  * Addresses taken from the CC1120 datasheet (SWRS098).
  *
- * TODO: After generating a configuration with SmartRF Studio, copy the
- *       register VALUE table into cc1120.c :: cc1120_init_minimal().
+ * TODO: Fill all register values from SmartRF Studio export for 169.4 MHz.
+ *       Copy the register VALUE table into cc1120.c :: cc1120_init_minimal().
  *       The addresses below are correct; only the *values to write* are
  *       project-specific and must come from SmartRF / TI docs.
  *===========================================================================*/

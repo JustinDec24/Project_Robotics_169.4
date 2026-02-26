@@ -1,38 +1,57 @@
 /*============================================================================
- * config.h — Build-time configuration for Remote node firmware
- *
- * Project : 169.4 MHz RF link  (CC1120 + PIC)
- * Node    : REMOTE  (PC-connected controller)
+ * config.h — Build-time configuration for dual-role modem firmware
  *===========================================================================*/
 #ifndef CONFIG_H
 #define CONFIG_H
 
-/* ---- Network / addressing ------------------------------------------------*/
-#define NET_ID_DEFAULT          0x42
-#define REMOTE_DEV_ID           0x01
-#define ROBOT_DEV_ID_DEFAULT    0x10
+/* ---- Build role ----------------------------------------------------------*/
+#define MODEM_ROLE_REMOTE       1u
+#define MODEM_ROLE_ROBOT        2u
+
+/* Default build role if project flags do not define MODEM_ROLE. */
+#ifndef MODEM_ROLE
+#define MODEM_ROLE MODEM_ROLE_REMOTE
+#endif
+
+#if (MODEM_ROLE != MODEM_ROLE_REMOTE) && (MODEM_ROLE != MODEM_ROLE_ROBOT)
+#error "MODEM_ROLE must be MODEM_ROLE_REMOTE or MODEM_ROLE_ROBOT"
+#endif
+
+/* ---- Network / node IDs --------------------------------------------------*/
+#define NET_ID_DEFAULT              0x42u
+#define REMOTE_MODEM_ID             0x01u
+#define ROBOT_MODEM_ID_DEFAULT      0x10u
+#define RF_BROADCAST_ID             0xFFu
 
 /* ---- Payload limits ------------------------------------------------------*/
-#define MAX_RF_PAYLOAD          32      /* max user payload bytes per RF pkt */
-#define MAX_UART_PAYLOAD        64      /* max payload in a UART frame       */
-
-/* ---- Timing (ms) ---------------------------------------------------------*/
-#define DEFAULT_CMD_RATE_HZ     10
-#define MIN_TX_INTERVAL_MS      (1000u / DEFAULT_CMD_RATE_HZ)
-#define ACK_TIMEOUT_MS          100u
-#define MAX_RETRIES             3
-
-/* ---- UART framing --------------------------------------------------------*/
-#define UART_SYNC1              0xAA
-#define UART_SYNC2              0x55
-
-/* ---- Ring-buffer sizes (MUST be power of 2) ------------------------------*/
-#define UART_RX_BUF_SIZE        128
-#define UART_TX_BUF_SIZE        128
+#define MAX_RF_PAYLOAD              48u   /* max bytes after RF TYPE/SEQ      */
+#define MAX_UART_PAYLOAD            96u   /* max bytes in framed UART payload */
 
 /* ---- RF packet overhead --------------------------------------------------*/
-/* LEN(1) + NET_ID(1) + DEV_ID(1) + SEQ(1) + TYPE(1) = 5 bytes before payload */
-#define RF_HEADER_SIZE          5
-#define RF_MAX_PKT_SIZE         (RF_HEADER_SIZE + MAX_RF_PAYLOAD)
+/* RF body bytes after LEN: NET_ID + SRC + DST + TYPE + SEQ + PAYLOAD */
+#define RF_HEADER_SIZE              5u
+#define RF_MAX_BODY_SIZE            (RF_HEADER_SIZE + MAX_RF_PAYLOAD)
+#define RF_MAX_PKT_SIZE             (1u + RF_MAX_BODY_SIZE) /* includes LEN */
+
+/* ---- UART framing --------------------------------------------------------*/
+#define UART_SYNC1                  0xAAu
+#define UART_SYNC2                  0x55u
+
+/* ---- Ring-buffer sizes (MUST be power of 2) ------------------------------*/
+#define UART_RX_BUF_SIZE            256u
+
+/* ---- Timing (ms) ---------------------------------------------------------*/
+#define BEACON_INTERVAL_MS          500u
+#define CONNECT_TIMEOUT_MS          800u
+#define LINK_LOST_TIMEOUT_MS        3000u
+#define STATS_PUSH_INTERVAL_MS      500u
+#define RTT_PING_INTERVAL_MS        1000u
+
+/* ---- Data coalescing -----------------------------------------------------*/
+#define DATA_FLUSH_BYTES            24u
+#define DATA_FLUSH_TIMEOUT_MS       15u
+
+/* ---- Scan cache ----------------------------------------------------------*/
+#define MAX_DISCOVERED_ROBOTS       8u
 
 #endif /* CONFIG_H */

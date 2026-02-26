@@ -23,6 +23,12 @@
  *   SPI MOSI -> RC5
  *   UART TX  -> RC6
  *   UART RX  -> RC7
+ *
+ * TODO (project specific):
+ *   - Confirm CC1120 CS/RESET/GDO pin mapping for your chosen PIC.
+ *   - Confirm UART pins used by:
+ *       REMOTE role -> USB-UART dongle to control PC.
+ *       ROBOT role  -> SBC serial tty.
  * ====================================================================*/
 
 /* ---- CC1120 chip-select --------------------------------------------------*/

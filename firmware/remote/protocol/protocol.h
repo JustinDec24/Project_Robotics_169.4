@@ -1,11 +1,10 @@
 /*============================================================================
- * protocol/protocol.h — UART binary framing  (PC <-> Remote)
+ * protocol/protocol.h — Framed UART protocol (PC <-> Remote modem)
  *
  * Frame format:
- *   [SYNC1=0xAA][SYNC2=0x55][LEN][CMD_TYPE][PAYLOAD...][CRC8]
- *
- * LEN = number of bytes from CMD_TYPE through end of PAYLOAD (excludes CRC8).
- * CRC8 is computed over bytes [LEN .. last payload byte].
+ *   [0xAA][0x55][LEN][TYPE][PAYLOAD...][CRC8]
+ * LEN = number of bytes from TYPE through PAYLOAD.
+ * CRC8 is computed over [LEN, TYPE, PAYLOAD...].
  *===========================================================================*/
 #ifndef PROTOCOL_H
 #define PROTOCOL_H
@@ -14,27 +13,27 @@
 #include <stdbool.h>
 #include "../config.h"
 
-/* ---- Command types (PC -> Remote) ----------------------------------------*/
-#define CMD_MOVE        0x01    /* payload: 2 bytes (e.g. left_speed, right_speed) */
-#define CMD_STOP        0x02    /* payload: 0 bytes                                */
-#define CMD_PING        0x03    /* payload: 0 bytes                                */
-#define CMD_SET_PARAM   0x04    /* payload: key(1) + value(N), placeholder         */
+/* ---- PC -> Remote types ---------------------------------------------------*/
+#define UART_MSG_SCAN_START      0x01u
+#define UART_MSG_SCAN_STOP       0x02u
+#define UART_MSG_CONNECT         0x03u
+#define UART_MSG_DISCONNECT      0x04u
+#define UART_MSG_GET_STATS       0x05u
+#define UART_MSG_DATA_TX         0x10u
 
-/* ---- Event types (Remote -> PC) ------------------------------------------*/
-#define EVT_LOG         0x80    /* payload: ASCII text (no null terminator)  */
-#define EVT_ACK_STATUS  0x81    /* payload: seq(1) + result(1)              */
-#define EVT_TELEMETRY   0x82    /* payload: variable telemetry data         */
-
-/* ---- ACK result codes ----------------------------------------------------*/
-#define ACK_OK          0x00
-#define ACK_FAIL        0x01
-#define ACK_TIMEOUT     0x02
+/* ---- Remote -> PC types ---------------------------------------------------*/
+#define UART_MSG_SCAN_RESULT     0x81u
+#define UART_MSG_CONNECTED       0x82u
+#define UART_MSG_DISCONNECTED    0x83u
+#define UART_MSG_STATS           0x84u
+#define UART_MSG_DATA_RX         0x90u
+#define UART_MSG_LOG             0x9Fu
 
 /* ---- Parsed UART frame ---------------------------------------------------*/
 typedef struct {
-    uint8_t cmd_type;
+    uint8_t msg_type;
     uint8_t payload[MAX_UART_PAYLOAD];
-    uint8_t payload_len;                /* bytes in payload (LEN - 1) */
+    uint8_t payload_len;
 } uart_frame_t;
 
 /* ---- Decoder (processes one byte at a time, called from main loop) -------*/
@@ -57,17 +56,16 @@ void protocol_decoder_init(protocol_decoder_t *dec);
 bool protocol_decoder_feed(protocol_decoder_t *dec, uint8_t byte_in,
                            uart_frame_t *out);
 
-/* ---- Encoder (builds & sends a frame over UART) -------------------------*/
-void protocol_send_frame(uint8_t cmd_type,
+/* ---- Generic encoder ------------------------------------------------------*/
+void protocol_send_frame(uint8_t msg_type,
                          const uint8_t *payload, uint8_t payload_len);
 
-/* ---- Convenience: send a text log line to PC ----------------------------*/
+/* ---- Convenience encoders (Remote -> PC) ---------------------------------*/
+void protocol_send_scan_result(uint8_t robot_id, uint8_t rssi, uint8_t age_100ms);
+void protocol_send_connected(uint8_t robot_id);
+void protocol_send_disconnected(uint8_t reason);
+void protocol_send_stats(uint8_t rssi_avg, uint8_t per_pct, uint16_t rtt_ms);
+void protocol_send_data_rx(const uint8_t *data, uint8_t len);
 void protocol_send_log(const char *text);
-
-/* ---- Convenience: send ACK status to PC ---------------------------------*/
-void protocol_send_ack_status(uint8_t seq, uint8_t result);
-
-/* ---- Convenience: send telemetry to PC ----------------------------------*/
-void protocol_send_telemetry(const uint8_t *data, uint8_t len);
 
 #endif /* PROTOCOL_H */

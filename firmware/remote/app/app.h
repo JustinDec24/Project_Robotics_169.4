@@ -1,5 +1,5 @@
 /*============================================================================
- * app/app.h — Remote-node application state machine
+ * app/app.h — Dual-role modem application state machine
  *===========================================================================*/
 #ifndef APP_H
 #define APP_H
@@ -8,23 +8,19 @@
 
 /* Application states */
 typedef enum {
-    /* Boot sequence */
     APP_INIT,
-    APP_UART_READY,
-    APP_RF_INIT,
+    APP_RF_READY,
 
-    /* Normal operation */
-    APP_RX_LISTEN,
+    /* Remote role */
+    APP_REMOTE_IDLE_SCAN,
+    APP_REMOTE_CONNECTING,
+    APP_REMOTE_SESSION,
 
-    /* TX path */
-    APP_DUTY_CHECK,
-    APP_BUILD_RF_PKT,
-    APP_TX_LOAD_FIFO,
-    APP_TX_STROBE,
-    APP_TX_WAIT_DONE,
-    APP_RX_WAIT_ACK,
+    /* Robot role */
+    APP_ROBOT_ADVERTISING,
+    APP_ROBOT_CONNECTED,
 
-    /* Error recovery */
+    /* Shared recovery */
     APP_RX_ERROR_RECOVER,
     APP_TX_ERROR_RECOVER
 } app_state_t;

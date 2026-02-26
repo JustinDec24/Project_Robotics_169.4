@@ -7,13 +7,13 @@
 #include "../drivers/spi.h"
 
 static volatile uint8_t radio_event_flags = 0;
-static volatile bool    gdo_irq_pending  = false;
+static volatile bool gdo_irq_pending = false;
 
 /* ===== Internal SPI helpers ===============================================*/
 
-static uint8_t spi_send_byte(uint8_t b)
+static uint8_t spi_send_byte(uint8_t tx)
 {
-    return spi_transfer_byte(b);
+    return spi_transfer_byte(tx);
 }
 
 /* ===== Command strobes ====================================================*/
@@ -25,6 +25,14 @@ uint8_t cc1120_strobe(uint8_t strobe_addr)
     cc1120_cs_deassert();
     return status;
 }
+
+uint8_t cc1120_strobe_stx(void)   { return cc1120_strobe(CC1120_STX); }
+uint8_t cc1120_strobe_srx(void)   { return cc1120_strobe(CC1120_SRX); }
+uint8_t cc1120_strobe_sidle(void) { return cc1120_strobe(CC1120_SIDLE); }
+uint8_t cc1120_strobe_sfrx(void)  { return cc1120_strobe(CC1120_SFRX); }
+uint8_t cc1120_strobe_sftx(void)  { return cc1120_strobe(CC1120_SFTX); }
+uint8_t cc1120_strobe_sres(void)  { return cc1120_strobe(CC1120_SRES); }
+uint8_t cc1120_strobe_snop(void)  { return cc1120_strobe(CC1120_SNOP); }
 
 /* ===== Standard register read/write =======================================*/
 
@@ -86,7 +94,7 @@ void cc1120_ext_reg_write(uint8_t ext_addr, uint8_t val)
 
 /* ===== FIFO access ========================================================*/
 
-void cc1120_fifo_write(const uint8_t *buf, size_t len)
+void cc1120_write_txfifo(const uint8_t *buf, size_t len)
 {
     cc1120_cs_assert();
     spi_send_byte(CC1120_WRITE | CC1120_BURST | CC1120_FIFO);
@@ -95,7 +103,7 @@ void cc1120_fifo_write(const uint8_t *buf, size_t len)
     cc1120_cs_deassert();
 }
 
-void cc1120_fifo_read(uint8_t *buf, size_t len)
+void cc1120_read_rxfifo(uint8_t *buf, size_t len)
 {
     cc1120_cs_assert();
     spi_send_byte(CC1120_READ | CC1120_BURST | CC1120_FIFO);
@@ -108,7 +116,7 @@ void cc1120_fifo_read(uint8_t *buf, size_t len)
 
 uint8_t cc1120_get_status(void)
 {
-    return cc1120_strobe(CC1120_SNOP);
+    return cc1120_strobe_snop();
 }
 
 uint8_t cc1120_get_marcstate(void)
@@ -116,12 +124,12 @@ uint8_t cc1120_get_marcstate(void)
     return (cc1120_ext_reg_read(CC1120_MARCSTATE) & 0x1F);
 }
 
-uint8_t cc1120_get_rxbytes(void)
+uint8_t cc1120_get_num_rxbytes(void)
 {
     return cc1120_ext_reg_read(CC1120_NUM_RXBYTES);
 }
 
-uint8_t cc1120_get_txbytes(void)
+uint8_t cc1120_get_num_txbytes(void)
 {
     return cc1120_ext_reg_read(CC1120_NUM_TXBYTES);
 }
@@ -154,9 +162,9 @@ void cc1120_reset(void)
 
 /* ===== Convenience ========================================================*/
 
-void cc1120_enter_idle(void)
+void cc1120_set_idle(void)
 {
-    cc1120_strobe(CC1120_SIDLE);
+    cc1120_strobe_sidle();
     /* Wait until actually in IDLE */
     uint8_t timeout = 200;
     while (cc1120_get_marcstate() != MARCSTATE_IDLE && --timeout) {
@@ -164,21 +172,21 @@ void cc1120_enter_idle(void)
     }
 }
 
-void cc1120_enter_rx(void)
+void cc1120_set_rx(void)
 {
-    cc1120_strobe(CC1120_SRX);
+    cc1120_strobe_srx();
 }
 
 void cc1120_flush_rx(void)
 {
-    cc1120_enter_idle();
-    cc1120_strobe(CC1120_SFRX);
+    cc1120_set_idle();
+    cc1120_strobe_sfrx();
 }
 
 void cc1120_flush_tx(void)
 {
-    cc1120_enter_idle();
-    cc1120_strobe(CC1120_SFTX);
+    cc1120_set_idle();
+    cc1120_strobe_sftx();
 }
 
 /* ===== Minimal init =======================================================*/
@@ -192,7 +200,7 @@ bool cc1120_init_minimal(void)
      * TODO: Verify this expected value against your CC1120 revision.
      */
     uint8_t partnum = cc1120_ext_reg_read(0x8F);  /* PARTNUMBER ext reg */
-    (void)partnum; /* TODO: Optionally check partnum == expected value */
+    (void)partnum;
 
     /*
      * ===================================================================
@@ -230,7 +238,7 @@ bool cc1120_init_minimal(void)
      * ===================================================================
      */
 
-    /* TODO: Configure GDO0 to assert on RX packet received or TX done.
+    /* TODO: Configure GDO mapping and interrupt polarity in SmartRF export.
      * Common choices:
      *   0x01 = RX FIFO above threshold
      *   0x06 = Sync word received (assert) / end of packet (deassert)
@@ -251,6 +259,7 @@ bool cc1120_init_minimal(void)
 
 void isr_cc1120_gdo(void)
 {
+    radio_event_flags |= RADIO_EVT_GDO_EDGE;
     gdo_irq_pending = true;
 }
 
@@ -273,16 +282,16 @@ void cc1120_process_events(void)
     uint8_t marc = cc1120_get_marcstate();
 
     if (marc == MARCSTATE_RX_FIFO_ERR) {
-        radio_event_flags |= RADIO_EVT_RX_FIFO_ERR;
+        radio_event_flags |= RADIO_EVT_RX_OVERFLOW;
         return;
     }
     if (marc == MARCSTATE_TX_FIFO_ERR) {
-        radio_event_flags |= RADIO_EVT_TX_FIFO_ERR;
+        radio_event_flags |= RADIO_EVT_TX_UNDERFLOW;
         return;
     }
 
-    /* Heuristic: bytes waiting in RX FIFO means a packet just arrived. */
-    if (cc1120_get_rxbytes() > 0) {
+    /* Single-GDO heuristic: RX bytes pending => RX_DONE, otherwise TX_DONE. */
+    if (cc1120_get_num_rxbytes() > 0) {
         radio_event_flags |= RADIO_EVT_RX_DONE;
     } else {
         radio_event_flags |= RADIO_EVT_TX_DONE;
