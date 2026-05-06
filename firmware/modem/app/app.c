@@ -1,5 +1,12 @@
 /*============================================================================
- * app/app.c — Dual-role modem state machines
+ * app/app.c — Dual-role modem state machines with ARQ on DATA.
+ *
+ * REMOTE: framed UART <-> RF tunnel to the connected ROBOT.
+ * ROBOT : raw UART (login shell) <-> RF tunnel back to REMOTE.
+ *
+ * DATA frames are reliable (stop-and-wait ACK + retransmit). All other RF
+ * frames are best-effort. The RF half-duplex collision risk is mitigated by
+ * the random pre-retransmit jitter inside radio_link.
  *===========================================================================*/
 #include "app.h"
 #include "../config.h"
@@ -22,11 +29,12 @@
 #define DISCONNECT_REASON_RF              0x02u
 #define DISCONNECT_REASON_LINK_TIMEOUT    0x03u
 #define DISCONNECT_REASON_CONNECT_TIMEOUT 0x04u
+#define DISCONNECT_REASON_ARQ_FAILED      0x05u
 
 typedef struct {
     bool     valid;
     uint8_t  robot_id;
-    uint8_t  rssi;
+    int8_t   rssi;
     uint32_t last_seen_ms;
 } robot_cache_entry_t;
 
@@ -35,21 +43,23 @@ static app_state_t recover_return_state_;
 
 #if MODEM_ROLE == MODEM_ROLE_REMOTE
 static protocol_decoder_t uart_dec_;
-static bool scan_reporting_enabled_;
-static uint8_t connected_robot_id_;
+static bool     scan_reporting_enabled_;
+static uint8_t  connected_robot_id_;
 static uint32_t connect_request_ms_;
 static uint32_t last_robot_rx_ms_;
 static uint32_t last_stats_push_ms_;
 static uint32_t last_rtt_ping_ms_;
 static uint32_t rtt_ping_sent_ms_;
-static uint8_t rtt_ping_token_;
-static bool rtt_ping_pending_;
+static uint8_t  rtt_ping_token_;
+static bool     rtt_ping_pending_;
 static robot_cache_entry_t robot_cache_[MAX_DISCOVERED_ROBOTS];
 #else
-static uint8_t connected_remote_id_;
+static uint8_t  connected_remote_id_;
 static uint32_t last_beacon_ms_;
 static uint32_t last_remote_rx_ms_;
 #endif
+
+/* ===== Helpers ============================================================*/
 
 static uint8_t app_local_id(void)
 {
@@ -63,31 +73,53 @@ static uint8_t app_local_id(void)
 static void set_recovery_state(app_state_t recovery_state)
 {
     recover_return_state_ = state_;
-    state_ = recovery_state;
+    state_                = recovery_state;
 }
 
-static bool app_send_rf(uint8_t dst_id, uint8_t type, const uint8_t *payload, uint8_t payload_len)
+static bool app_send_rf(uint8_t dst_id, uint8_t type,
+                        const uint8_t *payload, uint8_t payload_len)
 {
-    if (radio_link_send(dst_id, type, payload, payload_len)) {
-        return true;
-    }
-    return false;
+    return radio_link_send(dst_id, type, payload, payload_len);
 }
 
+/* Attempt to flush a coalesced DATA frame over RF if the radio_link ARQ
+ * isn't already busy with a previous one. */
+static void app_try_flush_data(uint8_t dst_id, uint32_t now_ms)
+{
+    uint8_t payload[MAX_RF_PAYLOAD];
+    uint8_t len;
+
+    if (radio_link_arq_pending()) {
+        return;
+    }
+    if (!radio_link_data_buf_should_flush(now_ms)) {
+        return;
+    }
+    len = radio_link_data_buf_pop(payload);
+    if (len == 0u) {
+        return;
+    }
+    (void)radio_link_arq_send(dst_id, payload, len, now_ms);
+}
+
+/* ===== REMOTE role ========================================================*/
 #if MODEM_ROLE == MODEM_ROLE_REMOTE
+
 static void remote_enter_idle_scan(void)
 {
     connected_robot_id_ = 0;
-    radio_link_data_buf_reset();
-    rtt_ping_pending_ = false;
-    state_ = APP_REMOTE_IDLE_SCAN;
+    radio_link_session_reset();
+    rtt_ping_pending_   = false;
+    state_              = APP_REMOTE_IDLE_SCAN;
 }
 
 static void remote_send_stats(void)
 {
     link_metrics_t m;
     radio_link_metrics_get(&m);
-    protocol_send_stats(m.rssi_avg, m.per_pct, m.rtt_ms);
+    /* protocol_send_stats expects unsigned RSSI byte; cast through uint8_t
+     * preserves the bit pattern (PC side reinterprets as int8). */
+    protocol_send_stats((uint8_t)m.rssi_avg, m.per_pct, m.rtt_ms);
 }
 
 static robot_cache_entry_t *remote_find_robot_slot(uint8_t robot_id)
@@ -108,7 +140,7 @@ static robot_cache_entry_t *remote_find_robot_slot(uint8_t robot_id)
 static void remote_handle_beacon(const rf_packet_t *pkt, uint32_t now_ms)
 {
     uint32_t age_ms = 0;
-    uint8_t age_100ms;
+    uint8_t  age_100ms;
     robot_cache_entry_t *slot = remote_find_robot_slot(pkt->src_id);
 
     if (slot->valid) {
@@ -116,13 +148,13 @@ static void remote_handle_beacon(const rf_packet_t *pkt, uint32_t now_ms)
     }
     age_100ms = (age_ms >= 25500u) ? 255u : (uint8_t)(age_ms / 100u);
 
-    slot->valid = true;
-    slot->robot_id = pkt->src_id;
-    slot->rssi = (uint8_t)pkt->rssi;
+    slot->valid        = true;
+    slot->robot_id     = pkt->src_id;
+    slot->rssi         = pkt->rssi;
     slot->last_seen_ms = now_ms;
 
     if (scan_reporting_enabled_) {
-        protocol_send_scan_result(slot->robot_id, slot->rssi, age_100ms);
+        protocol_send_scan_result(slot->robot_id, (uint8_t)slot->rssi, age_100ms);
     }
 }
 
@@ -143,6 +175,7 @@ static void remote_handle_pc_frame(const uart_frame_t *frame, uint32_t now_ms)
             break;
         }
         connected_robot_id_ = frame->payload[0];
+        radio_link_session_reset();
         if (app_send_rf(connected_robot_id_, RF_TYPE_CONNECT_REQ, NULL, 0u)) {
             connect_request_ms_ = now_ms;
             state_ = APP_REMOTE_CONNECTING;
@@ -165,7 +198,14 @@ static void remote_handle_pc_frame(const uart_frame_t *frame, uint32_t now_ms)
 
     case UART_MSG_DATA_TX:
         if (state_ == APP_REMOTE_SESSION && frame->payload_len > 0u) {
-            radio_link_data_buf_push(frame->payload, frame->payload_len, now_ms);
+            uint8_t accepted = radio_link_data_buf_push(frame->payload,
+                                                        frame->payload_len,
+                                                        now_ms);
+            if (accepted < frame->payload_len) {
+                /* Coalescing buffer was full. The PC client should chunk
+                 * its DATA_TX into <= MAX_RF_PAYLOAD bytes per frame. */
+                protocol_send_log("DATA_TX truncated (RF buf full)");
+            }
         }
         break;
 
@@ -173,31 +213,36 @@ static void remote_handle_pc_frame(const uart_frame_t *frame, uint32_t now_ms)
         protocol_send_log("Unknown UART msg");
         break;
     }
-
 }
 
 static void remote_periodic(uint32_t now_ms)
 {
     uint8_t payload[2];
 
-    if (state_ == APP_REMOTE_SESSION && radio_link_data_buf_should_flush(now_ms)) {
-        uint8_t data_payload[MAX_RF_PAYLOAD];
-        uint8_t data_len = radio_link_data_buf_pop(data_payload);
-        if (data_len > 0u) {
-            (void)app_send_rf(connected_robot_id_, RF_TYPE_DATA, data_payload, data_len);
-        }
+    /* Try to flush any coalesced DATA over the ARQ. */
+    if (state_ == APP_REMOTE_SESSION) {
+        app_try_flush_data(connected_robot_id_, now_ms);
+    }
+
+    /* ARQ tick — handles ACK timeout / retransmit / give-up. */
+    if (radio_link_arq_tick(now_ms)) {
+        protocol_send_disconnected(DISCONNECT_REASON_ARQ_FAILED);
+        remote_enter_idle_scan();
+        return;
     }
 
     if (state_ == APP_REMOTE_CONNECTING &&
         (now_ms - connect_request_ms_) >= CONNECT_TIMEOUT_MS) {
         protocol_send_disconnected(DISCONNECT_REASON_CONNECT_TIMEOUT);
         remote_enter_idle_scan();
+        return;
     }
 
     if (state_ == APP_REMOTE_SESSION &&
         (now_ms - last_robot_rx_ms_) >= LINK_LOST_TIMEOUT_MS) {
         protocol_send_disconnected(DISCONNECT_REASON_LINK_TIMEOUT);
         remote_enter_idle_scan();
+        return;
     }
 
     if (state_ == APP_REMOTE_SESSION &&
@@ -211,9 +256,9 @@ static void remote_periodic(uint32_t now_ms)
         payload[0] = RF_STATS_PING_REQ;
         payload[1] = ++rtt_ping_token_;
         if (app_send_rf(connected_robot_id_, RF_TYPE_STATS, payload, 2u)) {
-            rtt_ping_pending_ = true;
-            rtt_ping_sent_ms_ = now_ms;
-            last_rtt_ping_ms_ = now_ms;
+            rtt_ping_pending_  = true;
+            rtt_ping_sent_ms_  = now_ms;
+            last_rtt_ping_ms_  = now_ms;
         }
     }
 }
@@ -231,6 +276,8 @@ static void remote_consume_uart(uint32_t now_ms)
 
 static void remote_consume_rf(const rf_packet_t *pkt, uint32_t now_ms)
 {
+    rx_data_action_t action;
+
     if (pkt->type == RF_TYPE_BEACON) {
         remote_handle_beacon(pkt, now_ms);
         return;
@@ -239,11 +286,11 @@ static void remote_consume_rf(const rf_packet_t *pkt, uint32_t now_ms)
     if (state_ == APP_REMOTE_CONNECTING && pkt->type == RF_TYPE_CONNECT_OK &&
         pkt->src_id == connected_robot_id_) {
         protocol_send_connected(connected_robot_id_);
-        last_robot_rx_ms_ = now_ms;
+        last_robot_rx_ms_   = now_ms;
         last_stats_push_ms_ = now_ms;
-        last_rtt_ping_ms_ = now_ms;
-        rtt_ping_pending_ = false;
-        state_ = APP_REMOTE_SESSION;
+        last_rtt_ping_ms_   = now_ms;
+        rtt_ping_pending_   = false;
+        state_              = APP_REMOTE_SESSION;
         return;
     }
 
@@ -259,8 +306,12 @@ static void remote_consume_rf(const rf_packet_t *pkt, uint32_t now_ms)
         return;
     }
 
-    if (pkt->type == RF_TYPE_DATA && pkt->payload_len > 0u) {
-        protocol_send_data_rx(pkt->payload, pkt->payload_len);
+    /* DATA / DATA_ACK -> ARQ layer (also dedup duplicates). */
+    if (pkt->type == RF_TYPE_DATA || pkt->type == RF_TYPE_DATA_ACK) {
+        action = radio_link_arq_handle_rx(pkt, now_ms);
+        if (action == RX_DATA_DELIVER && pkt->payload_len > 0u) {
+            protocol_send_data_rx(pkt->payload, pkt->payload_len);
+        }
         return;
     }
 
@@ -271,26 +322,37 @@ static void remote_consume_rf(const rf_packet_t *pkt, uint32_t now_ms)
         rtt_ping_pending_ = false;
     }
 }
-#else
+
+#else /* MODEM_ROLE == MODEM_ROLE_ROBOT */
+
+/* ===== ROBOT role =========================================================*/
+
 static void robot_consume_uart(uint32_t now_ms)
 {
     uint8_t b;
-    while (uart_read_byte_nonblocking(&b)) {
-        radio_link_data_buf_push(&b, 1u, now_ms);
+    /* Drain UART into the coalescing buffer. If the buffer fills up we
+     * stop reading; bytes stay in the UART RX ring (sized 512) until the
+     * next iteration, providing natural backpressure. */
+    while (radio_link_data_buf_count() < MAX_RF_PAYLOAD) {
+        if (!uart_read_byte_nonblocking(&b)) {
+            return;
+        }
+        (void)radio_link_data_buf_push(&b, 1u, now_ms);
     }
 }
 
 static void robot_consume_rf(const rf_packet_t *pkt, uint32_t now_ms)
 {
     uint8_t rsp[2];
+    rx_data_action_t action;
 
     if (state_ == APP_ROBOT_ADVERTISING) {
         if (pkt->type == RF_TYPE_CONNECT_REQ) {
             connected_remote_id_ = pkt->src_id;
+            radio_link_session_reset();
             (void)app_send_rf(connected_remote_id_, RF_TYPE_CONNECT_OK, NULL, 0u);
             last_remote_rx_ms_ = now_ms;
-            radio_link_data_buf_reset();
-            state_ = APP_ROBOT_CONNECTED;
+            state_             = APP_ROBOT_CONNECTED;
         }
         return;
     }
@@ -303,18 +365,21 @@ static void robot_consume_rf(const rf_packet_t *pkt, uint32_t now_ms)
 
     switch (pkt->type) {
     case RF_TYPE_DATA:
-        if (pkt->payload_len > 0u) {
+    case RF_TYPE_DATA_ACK:
+        action = radio_link_arq_handle_rx(pkt, now_ms);
+        if (action == RX_DATA_DELIVER && pkt->payload_len > 0u) {
             uart_write_bytes(pkt->payload, pkt->payload_len);
         }
         break;
 
     case RF_TYPE_DISCONNECT:
         connected_remote_id_ = 0u;
-        radio_link_data_buf_reset();
+        radio_link_session_reset();
         state_ = APP_ROBOT_ADVERTISING;
         break;
 
     case RF_TYPE_CONNECT_REQ:
+        /* Re-ACK in case our previous CONNECT_OK was lost. */
         (void)app_send_rf(connected_remote_id_, RF_TYPE_CONNECT_OK, NULL, 0u);
         break;
 
@@ -330,7 +395,10 @@ static void robot_consume_rf(const rf_packet_t *pkt, uint32_t now_ms)
         break;
     }
 }
-#endif
+
+#endif /* MODEM_ROLE */
+
+/* ===== Common: drain RX FIFO + classify events ============================*/
 
 static void app_consume_rf(uint32_t now_ms)
 {
@@ -350,6 +418,8 @@ static void app_consume_rf(uint32_t now_ms)
         return;
     }
     if ((evt & RADIO_EVT_TX_DONE) != 0u) {
+        /* RFEND_CFG1 already auto-RXes after TX, but force it in case of
+         * spurious states. */
         cc1120_set_rx();
     }
     if ((evt & RADIO_EVT_RX_DONE) == 0u) {
@@ -368,34 +438,37 @@ static void app_consume_rf(uint32_t now_ms)
     }
 }
 
+/* ===== Lifecycle ==========================================================*/
+
 void app_init(void)
 {
-    uint8_t i;
-    state_ = APP_INIT;
+    state_                = APP_INIT;
     recover_return_state_ = APP_INIT;
 
 #if MODEM_ROLE == MODEM_ROLE_REMOTE
-    protocol_decoder_init(&uart_dec_);
-    scan_reporting_enabled_ = true;
-    connected_robot_id_ = 0u;
-    connect_request_ms_ = 0u;
-    last_robot_rx_ms_ = 0u;
-    last_stats_push_ms_ = 0u;
-    last_rtt_ping_ms_ = 0u;
-    rtt_ping_sent_ms_ = 0u;
-    rtt_ping_token_ = 0u;
-    rtt_ping_pending_ = false;
-    for (i = 0u; i < MAX_DISCOVERED_ROBOTS; i++) {
-        robot_cache_[i].valid = false;
-        robot_cache_[i].robot_id = 0u;
-        robot_cache_[i].rssi = 0u;
-        robot_cache_[i].last_seen_ms = 0u;
+    {
+        uint8_t i;
+        protocol_decoder_init(&uart_dec_);
+        scan_reporting_enabled_ = true;
+        connected_robot_id_     = 0u;
+        connect_request_ms_     = 0u;
+        last_robot_rx_ms_       = 0u;
+        last_stats_push_ms_     = 0u;
+        last_rtt_ping_ms_       = 0u;
+        rtt_ping_sent_ms_       = 0u;
+        rtt_ping_token_         = 0u;
+        rtt_ping_pending_       = false;
+        for (i = 0u; i < MAX_DISCOVERED_ROBOTS; i++) {
+            robot_cache_[i].valid        = false;
+            robot_cache_[i].robot_id     = 0u;
+            robot_cache_[i].rssi         = 0;
+            robot_cache_[i].last_seen_ms = 0u;
+        }
     }
 #else
-    (void)i;
     connected_remote_id_ = 0u;
-    last_beacon_ms_ = 0u;
-    last_remote_rx_ms_ = 0u;
+    last_beacon_ms_      = 0u;
+    last_remote_rx_ms_   = 0u;
 #endif
 }
 
@@ -421,8 +494,6 @@ void app_task(void)
         cc1120_set_rx();
 #if MODEM_ROLE == MODEM_ROLE_REMOTE
         protocol_send_log("REMOTE modem ready");
-#else
-        /* ROBOT role does not use framed UART protocol during session. */
 #endif
         state_ = APP_RF_READY;
         break;
@@ -444,7 +515,6 @@ void app_task(void)
         if (state_ == APP_RX_ERROR_RECOVER || state_ == APP_TX_ERROR_RECOVER) {
             break;
         }
-        /* Periodic tunnel flush, stats push and RTT probing. */
         remote_periodic(now_ms);
         break;
 #else
@@ -465,19 +535,20 @@ void app_task(void)
         if (state_ == APP_RX_ERROR_RECOVER || state_ == APP_TX_ERROR_RECOVER) {
             break;
         }
-        if ((now_ms - last_remote_rx_ms_) >= LINK_LOST_TIMEOUT_MS) {
+        if (radio_link_arq_tick(now_ms)) {
+            /* ARQ gave up. Treat as link lost. */
             connected_remote_id_ = 0u;
-            radio_link_data_buf_reset();
+            radio_link_session_reset();
             state_ = APP_ROBOT_ADVERTISING;
             break;
         }
-        if (radio_link_data_buf_should_flush(now_ms)) {
-            uint8_t data_payload[MAX_RF_PAYLOAD];
-            uint8_t data_len = radio_link_data_buf_pop(data_payload);
-            if (data_len > 0u) {
-                (void)app_send_rf(connected_remote_id_, RF_TYPE_DATA, data_payload, data_len);
-            }
+        if ((now_ms - last_remote_rx_ms_) >= LINK_LOST_TIMEOUT_MS) {
+            connected_remote_id_ = 0u;
+            radio_link_session_reset();
+            state_ = APP_ROBOT_ADVERTISING;
+            break;
         }
+        app_try_flush_data(connected_remote_id_, now_ms);
         break;
 #endif
 
