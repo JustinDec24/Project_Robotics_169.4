@@ -133,9 +133,15 @@
 #define PPS_RC4             0x14u
 #define PPS_RC6             0x16u
 
-/* PPS output source codes (from datasheet Table 17-2). */
-#define PPS_OUT_SCK1        0x10u
-#define PPS_OUT_SDO1        0x11u
+/* PPS output source codes — PIC18F26Q10-specific (datasheet DS40001996A
+ * Table 17-2). Verify against the EXACT device datasheet — these codes
+ * differ between PIC18 families (Q10 vs K42 vs etc).
+ *   0x09 = TX1/CK1   (EUSART1)
+ *   0x0F = SCK1/SCL1 (MSSP1 clock)
+ *   0x10 = SDO1/SDA1 (MSSP1 data out)
+ *   0x11 = SCK2/SCL2 (MSSP2 clock)  -- NOT MSSP1 ! */
+#define PPS_OUT_SCK1        0x0Fu
+#define PPS_OUT_SDO1        0x10u
 #define PPS_OUT_TX1         0x09u
 
 /* ===========================================================================
@@ -283,11 +289,18 @@ void board_spi_hw_init(void)
     PIN_SDO_TRIS  = 0;      /* SDO as output */
 
     /* PPS: RC3 = SCK1 out, RC4 = SDI1 in, RC5 = SDO1 out.
-     * Master mode: only SDI input mux must be set; SCK and SDO are driven
-     * by the module via the RxyPPS output muxes. */
+     *
+     * !!! Master mode REQUIRES SSP1CLKPPS to also point at the SCK pin !!!
+     * Datasheet §27.2.1: "In Master mode the clock signal output to the SCK
+     * pin is also the clock signal input to the peripheral. The pin selected
+     * for output with the RxyPPS register must also be selected as the
+     * peripheral input with the SSPxCLKPPS register."
+     * Without this, the shift register internal latch doesn't fire and
+     * MISO sampling is broken. */
     RC3PPS     = PPS_OUT_SCK1;
-    SSP1DATPPS = PPS_RC4;
     RC5PPS     = PPS_OUT_SDO1;
+    SSP1CLKPPS = 0x13u;             /* RC3 (port C, pin 3) as SCK input */
+    SSP1DATPPS = PPS_RC4;
 
     /* Disable module to reconfigure. */
     SSP1CON1bits.SSPEN = 0;
@@ -401,13 +414,12 @@ void board_init(void)
     PIN_CC_GDO_TRIS  = 1;       /* input */
 
     /* --- INT0 from RB1 (CC1120 GDO0).
-     * On the Q10 the edge select for INT0 is INTCON2bits.INTEDG0 (legacy
-     * naming; if your device header uses INTCON0/INTEDG0 just rename).
+     * On the PIC18F26Q10 the edge select bit is INTCONbits.INT0EDG.
      * 1 = rising edge — IOCFG0 is configured as PKT_SYNC_RXTX (active high
      * during a packet); rising edge marks "frame in progress", we then
      * disambiguate RX vs TX in cc1120_process_events() at end-of-frame. */
     INT0PPS  = PPS_RB1;
-    INTCON2bits.INTEDG0 = 1;
+    INTCONbits.INT0EDG = 1;
     board_cc1120_int_enable();
 
     /* --- Other unused pins as inputs (TRIS=1) is the reset default. */

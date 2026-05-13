@@ -26,6 +26,7 @@
 #include "cc1120_regs.h"
 #include "../board/board.h"
 #include "../drivers/spi.h"
+#include "../drivers/uart.h"
 #include "../config.h"
 
 static volatile uint8_t radio_event_flags_ = 0;
@@ -347,8 +348,60 @@ bool cc1120_init_minimal(void)
      * fail init only if the SPI returns 0x00 or 0xFF (link likely broken).
      */
     partnum = cc1120_ext_reg_read(0x8F);
+
+    /* DEBUG: full SPI sanity tests so we can tell apart
+     *   - chip totally dead (all reads = 0xFF, write+readback fails)
+     *   - chip alive but XOSC not started (some reads vary)
+     *   - chip fully working (write+readback matches) */
+    {
+        const char *hex = "0123456789ABCDEF";
+        uint8_t i;
+        uint8_t v;
+        uint8_t msg[16];
+
+        uart_write_bytes((const uint8_t *)"\r\n--- SPI sanity ---\r\n", 22);
+
+        /* Test 1: read PARTNUM 5 times. */
+        for (i = 0; i < 5u; i++) {
+            v = cc1120_ext_reg_read(0x8F);
+            msg[0] = 'P'; msg[1] = 'N'; msg[2] = '['; msg[3] = (uint8_t)('0' + i);
+            msg[4] = ']'; msg[5] = '='; msg[6] = '0'; msg[7] = 'x';
+            msg[8] = (uint8_t)hex[(v >> 4) & 0x0Fu];
+            msg[9] = (uint8_t)hex[v & 0x0Fu];
+            msg[10] = '\r'; msg[11] = '\n';
+            uart_write_bytes(msg, 12);
+        }
+
+        /* Test 2: read a STANDARD register (IOCFG3, addr 0x00, default 0x06). */
+        v = cc1120_reg_read(0x00);
+        uart_write_bytes((const uint8_t *)"IOCFG3=0x", 9);
+        msg[0] = (uint8_t)hex[(v >> 4) & 0x0Fu];
+        msg[1] = (uint8_t)hex[v & 0x0Fu];
+        msg[2] = ' '; msg[3] = '('; msg[4] = 'r'; msg[5] = 'e';
+        msg[6] = 's'; msg[7] = 'e'; msg[8] = 't'; msg[9] = ':';
+        msg[10] = '0'; msg[11] = 'x'; msg[12] = '0'; msg[13] = '6';
+        msg[14] = ')'; msg[15] = '\r';
+        uart_write_bytes(msg, 16);
+        uart_write_bytes((const uint8_t *)"\n", 1);
+
+        /* Test 3: write 0x55 to IOCFG3 then read it back. */
+        cc1120_reg_write(0x00, 0x55u);
+        v = cc1120_reg_read(0x00);
+        uart_write_bytes((const uint8_t *)"WROTE 0x55 -> READ 0x", 21);
+        msg[0] = (uint8_t)hex[(v >> 4) & 0x0Fu];
+        msg[1] = (uint8_t)hex[v & 0x0Fu];
+        msg[2] = '\r'; msg[3] = '\n';
+        uart_write_bytes(msg, 4);
+
+        uart_write_bytes((const uint8_t *)"--- end ---\r\n", 13);
+    }
+
     if (partnum == 0x00u || partnum == 0xFFu) {
-        return false;
+        /* DEBUG: bypass disabled for now — uncomment the line below to skip
+         * the PARTNUM check and continue init even if the CC1120 doesn't
+         * respond, so the rest of the firmware (UART, app loop) can be
+         * exercised. The radio itself obviously won't work. */
+        /* (void)0; */ return false;
     }
 
     /* Write standard registers. */

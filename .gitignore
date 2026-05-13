@@ -1,0 +1,8 @@
+# MPLAB X build artifacts
+firmware/*.X/build/
+firmware/*.X/dist/
+firmware/*.X/debug/
+firmware/*.X/nbproject/private/SuppressibleMessageMemo.properties
+
+# Datasheet text extracts (research scratch)
+*_extract.txt

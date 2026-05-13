@@ -27,11 +27,21 @@ int main(void)
 {
     board_init();
     uart_init(UART_BAUD_DEFAULT);
-    spi_init();
-    timer_init();
+
+    /* DEBUG: prove the UART is alive before anything else can hang the boot.
+     * If you see "BOOT" in your terminal -> board_init + uart_init are fine,
+     * any silence after this line points to spi/timer/radio init or app loop. */
     global_int_enable();
+    uart_write_bytes((const uint8_t *)"BOOT\r\n", 6);
+
+    spi_init();
+    uart_write_bytes((const uint8_t *)"SPI ok\r\n", 8);
+
+    timer_init();
+    uart_write_bytes((const uint8_t *)"TIMER ok\r\n", 10);
 
     app_init();
+    uart_write_bytes((const uint8_t *)"APP init ok, entering loop\r\n", 28);
 
     for (;;) {
         app_task();
