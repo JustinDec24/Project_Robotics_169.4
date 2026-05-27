@@ -307,11 +307,17 @@ void board_spi_hw_init(void)
 
     /* SPI mode 0 (CC1120 expects CPOL=0, CPHA=0):
      *   CKP = 0 (clock idle low)
-     *   CKE = 1 (transmit on active-to-idle edge — i.e. mode 0 with CKP=0)
-     *   SMP = 1 (sample at end of output time, recommended for master)
-     * Master mode, Fosc/4 = 8 MHz (within CC1120 max 10 MHz). */
-    SSP1STAT = 0xC0u;       /* SMP=1, CKE=1 */
-    SSP1CON1 = 0x20u;       /* SSPEN=1, CKP=0, SSPM=0000 (Fosc/4) */
+     *   CKE = 1 (transmit on active-to-idle edge — mode 0 with CKP=0)
+     *   SMP = 0 (sample MISO at middle of bit time = rising edge of SCK,
+     *            the correct mode-0 sample point. SMP=1 races with slave.)
+     * Master mode, Fosc/16 = 2 MHz.
+     * !!! Why Fosc/16, not Fosc/4? CC1120 datasheet SWRU295E Table 1 says
+     * SCK max = 4 MHz when XOSC has not yet stabilised. The first SPI
+     * transactions after reset happen exactly during XOSC settling, so we
+     * must stay <= 4 MHz on the slow side. Fosc/4 = 8 MHz exceeded this and
+     * caused the first read after reset to return 0xFF reliably. */
+    SSP1STAT = 0x40u;       /* SMP=0, CKE=1 */
+    SSP1CON1 = 0x21u;       /* SSPEN=1, CKP=0, SSPM=0001 (Fosc/16 = 2 MHz) */
 }
 
 uint8_t board_spi_exchange(uint8_t b)

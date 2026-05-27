@@ -483,15 +483,12 @@ void app_task(void)
 
     switch (state_) {
     case APP_INIT:
-        uart_write_bytes((const uint8_t *)"calling cc1120_init...\r\n", 24);
         if (!cc1120_init_minimal()) {
-            uart_write_bytes((const uint8_t *)"cc1120 init FAILED (PARTNUM 0/FF)\r\n", 35);
 #if MODEM_ROLE == MODEM_ROLE_REMOTE
             protocol_send_log("CC1120 init fail");
 #endif
             return;
         }
-        uart_write_bytes((const uint8_t *)"cc1120 init OK\r\n", 16);
         radio_link_init(app_local_id(), NET_ID_DEFAULT);
         cc1120_events_clear_all();
         cc1120_set_rx();

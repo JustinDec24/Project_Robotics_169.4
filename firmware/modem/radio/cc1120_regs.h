@@ -87,27 +87,44 @@
 /* ===== Extended register space (two-byte SPI header: 0x2F + ext_addr) =====*/
 #define CC1120_EXT_ADDR         0x2F    /* First SPI byte for extended regs  */
 
-/* Extended registers used by this firmware: */
+/* Extended registers — addresses verified against CC112x User Guide SWRU295E
+ * Table 22. The previous version of this header had FS_CAL0, FS_DIVTWO,
+ * FS_DSM0, FS_DVC0 at the WRONG addresses (offset by ~3), which silently
+ * scrambled the frequency synthesizer config and prevented calibration. */
 #define CC1120_IF_MIX_CFG       0x00
 #define CC1120_FREQOFF_CFG      0x01
 #define CC1120_FREQ2            0x0C
 #define CC1120_FREQ1            0x0D
 #define CC1120_FREQ0            0x0E
+#define CC1120_IF_ADC2          0x0F
+#define CC1120_IF_ADC1          0x10
 #define CC1120_IF_ADC0          0x11
 #define CC1120_FS_DIG1          0x12
 #define CC1120_FS_DIG0          0x13
-#define CC1120_FS_CAL0          0x14
-#define CC1120_FS_DIVTWO        0x17
-#define CC1120_FS_DSM0          0x19
-#define CC1120_FS_DVC0          0x1B
+#define CC1120_FS_CAL3          0x14
+#define CC1120_FS_CAL2          0x15
+#define CC1120_FS_CAL1          0x16
+#define CC1120_FS_CAL0          0x17
+#define CC1120_FS_CHP           0x18
+#define CC1120_FS_DIVTWO        0x19
+#define CC1120_FS_DSM1          0x1A
+#define CC1120_FS_DSM0          0x1B
+#define CC1120_FS_DVC1          0x1C
+#define CC1120_FS_DVC0          0x1D
+#define CC1120_FS_LBI           0x1E
 #define CC1120_FS_PFD           0x1F
 #define CC1120_FS_PRE           0x20
 #define CC1120_FS_REG_DIV_CML   0x21
 #define CC1120_FS_SPARE         0x22
 #define CC1120_FS_VCO4          0x23
+#define CC1120_FS_VCO3          0x24
 #define CC1120_FS_VCO2          0x25
+#define CC1120_FS_VCO1          0x26
 #define CC1120_FS_VCO0          0x27
 #define CC1120_XOSC5            0x32
+#define CC1120_XOSC4            0x33
+#define CC1120_XOSC3            0x34
+#define CC1120_XOSC2            0x35
 #define CC1120_XOSC1            0x36
 
 /* Extended status registers (read-only): */

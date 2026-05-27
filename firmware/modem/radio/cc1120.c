@@ -22,11 +22,11 @@
  * SmartRF Studio for your antenna and regulatory constraints, then paste
  * the new values into the table below.
  *===========================================================================*/
+#include <xc.h>     /* needed for PORTCbits direct read (CHIP_RDY detect) */
 #include "cc1120.h"
 #include "cc1120_regs.h"
 #include "../board/board.h"
 #include "../drivers/spi.h"
-#include "../drivers/uart.h"
 #include "../config.h"
 
 static volatile uint8_t radio_event_flags_ = 0;
@@ -39,12 +39,20 @@ static uint8_t spi_send_byte(uint8_t tx)
     return spi_transfer_byte(tx);
 }
 
+/* ===== Wait-for-SO-low helper (forward decl) =============================*/
+
+/* Defined later in the file. Polls PORTCbits.RC4 until the CC1120 drops SO
+ * (CHIP_RDYn = 0). Must be called after cc1120_cs_assert() and before any
+ * SCLK edge, per SWRU295E §9.1.1. */
+static uint8_t wait_so_low_us(uint16_t timeout_us);
+
 /* ===== Command strobes ====================================================*/
 
 uint8_t cc1120_strobe(uint8_t strobe_addr)
 {
     uint8_t status;
     cc1120_cs_assert();
+    (void)wait_so_low_us(2000);     /* wait for CHIP_RDY before clocking */
     status = spi_send_byte(strobe_addr);
     cc1120_cs_deassert();
     return status;
@@ -64,6 +72,7 @@ uint8_t cc1120_reg_read(uint8_t addr)
 {
     uint8_t val;
     cc1120_cs_assert();
+    (void)wait_so_low_us(2000);
     spi_send_byte(CC1120_READ | addr);
     val = spi_send_byte(0x00);
     cc1120_cs_deassert();
@@ -73,6 +82,7 @@ uint8_t cc1120_reg_read(uint8_t addr)
 void cc1120_reg_write(uint8_t addr, uint8_t val)
 {
     cc1120_cs_assert();
+    (void)wait_so_low_us(2000);
     spi_send_byte(CC1120_WRITE | addr);
     spi_send_byte(val);
     cc1120_cs_deassert();
@@ -82,6 +92,7 @@ void cc1120_reg_burst_read(uint8_t addr, uint8_t *buf, size_t len)
 {
     size_t i;
     cc1120_cs_assert();
+    (void)wait_so_low_us(2000);
     spi_send_byte(CC1120_READ | CC1120_BURST | addr);
     for (i = 0; i < len; i++) {
         buf[i] = spi_send_byte(0x00);
@@ -93,6 +104,7 @@ void cc1120_reg_burst_write(uint8_t addr, const uint8_t *buf, size_t len)
 {
     size_t i;
     cc1120_cs_assert();
+    (void)wait_so_low_us(2000);
     spi_send_byte(CC1120_WRITE | CC1120_BURST | addr);
     for (i = 0; i < len; i++) {
         spi_send_byte(buf[i]);
@@ -106,6 +118,7 @@ uint8_t cc1120_ext_reg_read(uint8_t ext_addr)
 {
     uint8_t val;
     cc1120_cs_assert();
+    (void)wait_so_low_us(2000);
     spi_send_byte(CC1120_READ | CC1120_EXT_ADDR);
     spi_send_byte(ext_addr);
     val = spi_send_byte(0x00);
@@ -116,6 +129,7 @@ uint8_t cc1120_ext_reg_read(uint8_t ext_addr)
 void cc1120_ext_reg_write(uint8_t ext_addr, uint8_t val)
 {
     cc1120_cs_assert();
+    (void)wait_so_low_us(2000);
     spi_send_byte(CC1120_WRITE | CC1120_EXT_ADDR);
     spi_send_byte(ext_addr);
     spi_send_byte(val);
@@ -128,6 +142,7 @@ void cc1120_write_txfifo(const uint8_t *buf, size_t len)
 {
     size_t i;
     cc1120_cs_assert();
+    (void)wait_so_low_us(2000);
     spi_send_byte(CC1120_WRITE | CC1120_BURST | CC1120_FIFO);
     for (i = 0; i < len; i++) {
         spi_send_byte(buf[i]);
@@ -139,6 +154,7 @@ void cc1120_read_rxfifo(uint8_t *buf, size_t len)
 {
     size_t i;
     cc1120_cs_assert();
+    (void)wait_so_low_us(2000);
     spi_send_byte(CC1120_READ | CC1120_BURST | CC1120_FIFO);
     for (i = 0; i < len; i++) {
         buf[i] = spi_send_byte(0x00);
@@ -170,14 +186,32 @@ uint8_t cc1120_get_num_txbytes(void)
 
 /* ===== Reset sequence =====================================================*/
 
+/* Wait for SO (CC1120 MISO pin) to go low while CSn is asserted.
+ * SO is wired to RC4 -> SDI1 via PPS, but PORT readback still works on the
+ * pin regardless of the PPS routing. Returns 1 if SO dropped within timeout,
+ * 0 if it stayed high (chip not ready -> reset/XOSC issue). */
+static uint8_t wait_so_low_us(uint16_t timeout_us)
+{
+    while (timeout_us != 0u) {
+        if (PORTCbits.RC4 == 0u) {
+            return 1u;
+        }
+        Delay_us(10);
+        timeout_us = (timeout_us > 10u) ? (uint16_t)(timeout_us - 10u) : 0u;
+    }
+    return 0u;
+}
+
 void cc1120_reset(void)
 {
-    /* Manual reset per CC1120 datasheet section 6.1:
-     * - Toggle CSn to (re)synchronize SPI.
-     * - Pull CSn low; wait for SO (MISO) to go low (chip ready). We don't
-     *   have a MISO read GPIO (it's wired to SDI1), so we use a fixed delay
-     *   that comfortably exceeds the worst-case ready time.
-     * - Send SRES strobe and wait for chip-ready again. */
+    /* Manual reset per CC1120 datasheet §9.1 / SWRU295E §3.2.2 Figure 5:
+     * - Toggle CSn high-low-high to re-sync the SPI state machine.
+     * - Pull CSn low and WAIT for SO to go low (CHIP_RDYn=0) before SRES.
+     * - Send SRES strobe.
+     * - KEEP CSn LOW and wait for SO to go low AGAIN — that's how the chip
+     *   signals it has finished resetting and the XOSC is settled. Without
+     *   this wait, the first PARTNUM read after reset returns 0xFF because
+     *   the chip is still settling. */
     cc1120_cs_deassert();
     Delay_us(30);
     cc1120_cs_assert();
@@ -187,10 +221,11 @@ void cc1120_reset(void)
 
     cc1120_cs_assert();
     Delay_us(50);
+    (void)wait_so_low_us(5000);     /* CHIP_RDY before SRES */
     spi_send_byte(CC1120_SRES);
-    Delay_ms(5);
+    (void)wait_so_low_us(10000);    /* CHIP_RDY after SRES (settle + XOSC) */
     cc1120_cs_deassert();
-    Delay_ms(2);
+    Delay_ms(1);
 }
 
 /* ===== Mode helpers =======================================================*/
@@ -270,7 +305,10 @@ static const uint8_t cc1120_std_regs_[][2] = {
     /* FIFO threshold: assert above 32 bytes (default-ish). */
     { CC1120_FIFO_CFG,      0x00u },
     { CC1120_DEV_ADDR,      0x00u },     /* hardware addr filter disabled (we filter in SW) */
-    { CC1120_SETTLING_CFG,  0x03u },
+    /* SETTLING_CFG = 0x13: FS_AUTOCAL = 01 (calibrate on IDLE -> RX/TX
+     * transition). No manual SCAL — auto-cal handles everything when we
+     * strobe SRX or STX. */
+    { CC1120_SETTLING_CFG,  0x13u },
 
     /* Frequency synthesizer band: 169 MHz -> LO_DIVIDER=20.
      * FS_CFG bits[3:0] = 0b1010 (FSD_BANDSELECT = 10 -> 164..192 MHz),
@@ -305,31 +343,57 @@ static const uint8_t cc1120_std_regs_[][2] = {
     { CC1120_PKT_LEN,       (uint8_t)RF_MAX_PKT_SIZE },
 };
 
-/* Extended registers (accessed via 0x2F prefix). */
+/* Extended registers (accessed via 0x2F prefix).
+ * Values from TI SmartRF Studio profile for CC1120 at 169.4 MHz, 32 MHz
+ * XOSC, 2-GFSK, 4.8 kbps. Includes all FS_* / IF_ADC* / XOSC* registers
+ * that MUST be initialised — leaving them at reset defaults breaks the
+ * synthesizer calibration. */
 static const uint8_t cc1120_ext_regs_[][2] = {
     { CC1120_IF_MIX_CFG,    0x00u },
     { CC1120_FREQOFF_CFG,   0x22u },
 
-    /* FREQ24[23:0] = 0x69E000 -> 169.4 MHz with f_xosc=32 MHz, LO_DIV=20. */
+    /* FREQ for 169.4 MHz, LO_DIV=20, XOSC=32 MHz.
+     * FREQ = 169.4e6 * 20 * 65536 / 32e6 = 0x69E466 (SmartRF rounding). */
     { CC1120_FREQ2,         0x69u },
-    { CC1120_FREQ1,         0xE0u },
-    { CC1120_FREQ0,         0x00u },
+    { CC1120_FREQ1,         0xE4u },
+    { CC1120_FREQ0,         0x66u },
 
-    { CC1120_IF_ADC0,       0x05u },
+    /* IF/ADC config — SmartRF Studio narrowband 169 MHz */
+    { CC1120_IF_ADC2,       0x02u },
+    { CC1120_IF_ADC1,       0xA6u },
+    { CC1120_IF_ADC0,       0x04u },
+
+    /* Frequency Synthesizer registers — full set required for the synth
+     * to calibrate and lock correctly. */
     { CC1120_FS_DIG1,       0x00u },
     { CC1120_FS_DIG0,       0x5Fu },
+    { CC1120_FS_CAL3,       0x00u },
+    { CC1120_FS_CAL2,       0x20u },
+    { CC1120_FS_CAL1,       0x40u },
     { CC1120_FS_CAL0,       0x0Eu },
+    { CC1120_FS_CHP,        0x28u },
     { CC1120_FS_DIVTWO,     0x03u },
+    { CC1120_FS_DSM1,       0x00u },
     { CC1120_FS_DSM0,       0x33u },
+    { CC1120_FS_DVC1,       0xFFu },
     { CC1120_FS_DVC0,       0x17u },
+    { CC1120_FS_LBI,        0x00u },
     { CC1120_FS_PFD,        0x50u },
     { CC1120_FS_PRE,        0x6Eu },
     { CC1120_FS_REG_DIV_CML,0x14u },
     { CC1120_FS_SPARE,      0xACu },
     { CC1120_FS_VCO4,       0x14u },
+    { CC1120_FS_VCO3,       0x00u },
     { CC1120_FS_VCO2,       0x00u },
+    { CC1120_FS_VCO1,       0x00u },
     { CC1120_FS_VCO0,       0xB4u },
+
+    /* Crystal oscillator trim — defaults are typically wrong for the
+     * external 32 MHz crystal on the modem PCB. */
     { CC1120_XOSC5,         0x0Eu },
+    { CC1120_XOSC4,         0xA0u },
+    { CC1120_XOSC3,         0x03u },
+    { CC1120_XOSC2,         0x04u },
     { CC1120_XOSC1,         0x03u },
 };
 
@@ -342,66 +406,11 @@ bool cc1120_init_minimal(void)
 
     cc1120_reset();
 
-    /* Sanity check the SPI link by reading PARTNUMBER (ext reg 0x8F).
-     * CC1120 = 0x48, CC1121 = 0x58. The check is informational only —
-     * different CC112x revisions / packages may report other values; we
-     * fail init only if the SPI returns 0x00 or 0xFF (link likely broken).
-     */
+    /* Verify SPI link by reading PARTNUMBER (extended reg 0x8F).
+     * Expected: 0x48 (CC1120). We treat 0x00 or 0xFF as link broken. */
     partnum = cc1120_ext_reg_read(0x8F);
-
-    /* DEBUG: full SPI sanity tests so we can tell apart
-     *   - chip totally dead (all reads = 0xFF, write+readback fails)
-     *   - chip alive but XOSC not started (some reads vary)
-     *   - chip fully working (write+readback matches) */
-    {
-        const char *hex = "0123456789ABCDEF";
-        uint8_t i;
-        uint8_t v;
-        uint8_t msg[16];
-
-        uart_write_bytes((const uint8_t *)"\r\n--- SPI sanity ---\r\n", 22);
-
-        /* Test 1: read PARTNUM 5 times. */
-        for (i = 0; i < 5u; i++) {
-            v = cc1120_ext_reg_read(0x8F);
-            msg[0] = 'P'; msg[1] = 'N'; msg[2] = '['; msg[3] = (uint8_t)('0' + i);
-            msg[4] = ']'; msg[5] = '='; msg[6] = '0'; msg[7] = 'x';
-            msg[8] = (uint8_t)hex[(v >> 4) & 0x0Fu];
-            msg[9] = (uint8_t)hex[v & 0x0Fu];
-            msg[10] = '\r'; msg[11] = '\n';
-            uart_write_bytes(msg, 12);
-        }
-
-        /* Test 2: read a STANDARD register (IOCFG3, addr 0x00, default 0x06). */
-        v = cc1120_reg_read(0x00);
-        uart_write_bytes((const uint8_t *)"IOCFG3=0x", 9);
-        msg[0] = (uint8_t)hex[(v >> 4) & 0x0Fu];
-        msg[1] = (uint8_t)hex[v & 0x0Fu];
-        msg[2] = ' '; msg[3] = '('; msg[4] = 'r'; msg[5] = 'e';
-        msg[6] = 's'; msg[7] = 'e'; msg[8] = 't'; msg[9] = ':';
-        msg[10] = '0'; msg[11] = 'x'; msg[12] = '0'; msg[13] = '6';
-        msg[14] = ')'; msg[15] = '\r';
-        uart_write_bytes(msg, 16);
-        uart_write_bytes((const uint8_t *)"\n", 1);
-
-        /* Test 3: write 0x55 to IOCFG3 then read it back. */
-        cc1120_reg_write(0x00, 0x55u);
-        v = cc1120_reg_read(0x00);
-        uart_write_bytes((const uint8_t *)"WROTE 0x55 -> READ 0x", 21);
-        msg[0] = (uint8_t)hex[(v >> 4) & 0x0Fu];
-        msg[1] = (uint8_t)hex[v & 0x0Fu];
-        msg[2] = '\r'; msg[3] = '\n';
-        uart_write_bytes(msg, 4);
-
-        uart_write_bytes((const uint8_t *)"--- end ---\r\n", 13);
-    }
-
     if (partnum == 0x00u || partnum == 0xFFu) {
-        /* DEBUG: bypass disabled for now — uncomment the line below to skip
-         * the PARTNUM check and continue init even if the CC1120 doesn't
-         * respond, so the rest of the firmware (UART, app loop) can be
-         * exercised. The radio itself obviously won't work. */
-        /* (void)0; */ return false;
+        return false;
     }
 
     /* Write standard registers. */
@@ -413,12 +422,40 @@ bool cc1120_init_minimal(void)
         cc1120_ext_reg_write(cc1120_ext_regs_[i][0], cc1120_ext_regs_[i][1]);
     }
 
-    /* Manual frequency-synth calibration once at startup (recommended by
-     * datasheet section 9.13 for accurate first transmission). */
-    cc1120_strobe(CC1120_SCAL);
-    Delay_ms(2);
+    /* No manual SCAL — auto-cal is enabled via SETTLING_CFG = 0x13 and
+     * will run automatically when the chip transitions from IDLE to RX/TX.
+     * Manual SCAL was hanging in init even with correct FS registers, so
+     * we let the chip do auto-cal at the right moment instead. */
 
     /* Flush FIFOs and stay IDLE; the application picks the active state. */
+    cc1120_flush_rx();
+    cc1120_flush_tx();
+
+    return true;
+}
+
+bool cc1120_init_no_scal(void)
+{
+    uint16_t i;
+    uint8_t  partnum;
+
+    cc1120_reset();
+
+    partnum = cc1120_ext_reg_read(0x8F);
+    if (partnum == 0x00u || partnum == 0xFFu) {
+        return false;
+    }
+
+    /* Write all configuration registers (same as cc1120_init_minimal). */
+    for (i = 0; i < (sizeof(cc1120_std_regs_) / sizeof(cc1120_std_regs_[0])); i++) {
+        cc1120_reg_write(cc1120_std_regs_[i][0], cc1120_std_regs_[i][1]);
+    }
+    for (i = 0; i < (sizeof(cc1120_ext_regs_) / sizeof(cc1120_ext_regs_[0])); i++) {
+        cc1120_ext_reg_write(cc1120_ext_regs_[i][0], cc1120_ext_regs_[i][1]);
+    }
+
+    /* SKIP the SCAL strobe — that is what we are isolating in Phase 3c. */
+
     cc1120_flush_rx();
     cc1120_flush_tx();
 

@@ -51,17 +51,17 @@ OBJECTDIR=build/${CND_CONF}/${IMAGE_TYPE}
 DISTDIR=dist/${CND_CONF}/${IMAGE_TYPE}
 
 # Source Files Quoted if spaced
-SOURCEFILES_QUOTED_IF_SPACED=../modem/app/app.c ../modem/board/board.c ../modem/drivers/spi.c ../modem/drivers/timer.c ../modem/drivers/uart.c ../modem/main.c ../modem/protocol/protocol.c ../modem/radio/cc1120.c ../modem/radio/radio_link.c ../modem/util/crc8.c
+SOURCEFILES_QUOTED_IF_SPACED=../modem/app/app.c ../modem/board/board.c ../modem/drivers/spi.c ../modem/drivers/timer.c ../modem/drivers/uart.c ../modem/protocol/protocol.c ../modem/radio/cc1120.c ../modem/radio/radio_link.c ../modem/util/crc8.c ../modem/main.c
 
 # Object Files Quoted if spaced
-OBJECTFILES_QUOTED_IF_SPACED=${OBJECTDIR}/_ext/2069575635/app.p1 ${OBJECTDIR}/_ext/291444238/board.p1 ${OBJECTDIR}/_ext/963368279/spi.p1 ${OBJECTDIR}/_ext/963368279/timer.p1 ${OBJECTDIR}/_ext/963368279/uart.p1 ${OBJECTDIR}/_ext/2109966821/main.p1 ${OBJECTDIR}/_ext/591255540/protocol.p1 ${OBJECTDIR}/_ext/277082361/cc1120.p1 ${OBJECTDIR}/_ext/277082361/radio_link.p1 ${OBJECTDIR}/_ext/268264310/crc8.p1
-POSSIBLE_DEPFILES=${OBJECTDIR}/_ext/2069575635/app.p1.d ${OBJECTDIR}/_ext/291444238/board.p1.d ${OBJECTDIR}/_ext/963368279/spi.p1.d ${OBJECTDIR}/_ext/963368279/timer.p1.d ${OBJECTDIR}/_ext/963368279/uart.p1.d ${OBJECTDIR}/_ext/2109966821/main.p1.d ${OBJECTDIR}/_ext/591255540/protocol.p1.d ${OBJECTDIR}/_ext/277082361/cc1120.p1.d ${OBJECTDIR}/_ext/277082361/radio_link.p1.d ${OBJECTDIR}/_ext/268264310/crc8.p1.d
+OBJECTFILES_QUOTED_IF_SPACED=${OBJECTDIR}/_ext/2069575635/app.p1 ${OBJECTDIR}/_ext/291444238/board.p1 ${OBJECTDIR}/_ext/963368279/spi.p1 ${OBJECTDIR}/_ext/963368279/timer.p1 ${OBJECTDIR}/_ext/963368279/uart.p1 ${OBJECTDIR}/_ext/591255540/protocol.p1 ${OBJECTDIR}/_ext/277082361/cc1120.p1 ${OBJECTDIR}/_ext/277082361/radio_link.p1 ${OBJECTDIR}/_ext/268264310/crc8.p1 ${OBJECTDIR}/_ext/2109966821/main.p1
+POSSIBLE_DEPFILES=${OBJECTDIR}/_ext/2069575635/app.p1.d ${OBJECTDIR}/_ext/291444238/board.p1.d ${OBJECTDIR}/_ext/963368279/spi.p1.d ${OBJECTDIR}/_ext/963368279/timer.p1.d ${OBJECTDIR}/_ext/963368279/uart.p1.d ${OBJECTDIR}/_ext/591255540/protocol.p1.d ${OBJECTDIR}/_ext/277082361/cc1120.p1.d ${OBJECTDIR}/_ext/277082361/radio_link.p1.d ${OBJECTDIR}/_ext/268264310/crc8.p1.d ${OBJECTDIR}/_ext/2109966821/main.p1.d
 
 # Object Files
-OBJECTFILES=${OBJECTDIR}/_ext/2069575635/app.p1 ${OBJECTDIR}/_ext/291444238/board.p1 ${OBJECTDIR}/_ext/963368279/spi.p1 ${OBJECTDIR}/_ext/963368279/timer.p1 ${OBJECTDIR}/_ext/963368279/uart.p1 ${OBJECTDIR}/_ext/2109966821/main.p1 ${OBJECTDIR}/_ext/591255540/protocol.p1 ${OBJECTDIR}/_ext/277082361/cc1120.p1 ${OBJECTDIR}/_ext/277082361/radio_link.p1 ${OBJECTDIR}/_ext/268264310/crc8.p1
+OBJECTFILES=${OBJECTDIR}/_ext/2069575635/app.p1 ${OBJECTDIR}/_ext/291444238/board.p1 ${OBJECTDIR}/_ext/963368279/spi.p1 ${OBJECTDIR}/_ext/963368279/timer.p1 ${OBJECTDIR}/_ext/963368279/uart.p1 ${OBJECTDIR}/_ext/591255540/protocol.p1 ${OBJECTDIR}/_ext/277082361/cc1120.p1 ${OBJECTDIR}/_ext/277082361/radio_link.p1 ${OBJECTDIR}/_ext/268264310/crc8.p1 ${OBJECTDIR}/_ext/2109966821/main.p1
 
 # Source Files
-SOURCEFILES=../modem/app/app.c ../modem/board/board.c ../modem/drivers/spi.c ../modem/drivers/timer.c ../modem/drivers/uart.c ../modem/main.c ../modem/protocol/protocol.c ../modem/radio/cc1120.c ../modem/radio/radio_link.c ../modem/util/crc8.c
+SOURCEFILES=../modem/app/app.c ../modem/board/board.c ../modem/drivers/spi.c ../modem/drivers/timer.c ../modem/drivers/uart.c ../modem/protocol/protocol.c ../modem/radio/cc1120.c ../modem/radio/radio_link.c ../modem/util/crc8.c ../modem/main.c
 
 
 
@@ -92,7 +92,7 @@ ${OBJECTDIR}/_ext/2069575635/app.p1: ../modem/app/app.c  nbproject/Makefile-${CN
 	@${MKDIR} "${OBJECTDIR}/_ext/2069575635" 
 	@${RM} ${OBJECTDIR}/_ext/2069575635/app.p1.d 
 	@${RM} ${OBJECTDIR}/_ext/2069575635/app.p1 
-	${MP_CC} $(MP_EXTRA_CC_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -c  -D__DEBUG=1  -mdebugger=pickit4   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -xassembler-with-cpp -mwarn=-3 -Wa,-a -DXPRJ_default=$(CND_CONF)  -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits $(COMPARISON_BUILD)  -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     -o ${OBJECTDIR}/_ext/2069575635/app.p1 ../modem/app/app.c 
+	${MP_CC} $(MP_EXTRA_CC_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -c  -D__DEBUG=1  -mdebugger=pickit4   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -DMODEM_ROLE=1 -xassembler-with-cpp -mwarn=-3 -Wa,-a -DXPRJ_default=$(CND_CONF)  -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits $(COMPARISON_BUILD)  -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     -o ${OBJECTDIR}/_ext/2069575635/app.p1 ../modem/app/app.c 
 	@-${MV} ${OBJECTDIR}/_ext/2069575635/app.d ${OBJECTDIR}/_ext/2069575635/app.p1.d 
 	@${FIXDEPS} ${OBJECTDIR}/_ext/2069575635/app.p1.d $(SILENT) -rsi ${MP_CC_DIR}../  
 	
@@ -100,7 +100,7 @@ ${OBJECTDIR}/_ext/291444238/board.p1: ../modem/board/board.c  nbproject/Makefile
 	@${MKDIR} "${OBJECTDIR}/_ext/291444238" 
 	@${RM} ${OBJECTDIR}/_ext/291444238/board.p1.d 
 	@${RM} ${OBJECTDIR}/_ext/291444238/board.p1 
-	${MP_CC} $(MP_EXTRA_CC_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -c  -D__DEBUG=1  -mdebugger=pickit4   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -xassembler-with-cpp -mwarn=-3 -Wa,-a -DXPRJ_default=$(CND_CONF)  -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits $(COMPARISON_BUILD)  -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     -o ${OBJECTDIR}/_ext/291444238/board.p1 ../modem/board/board.c 
+	${MP_CC} $(MP_EXTRA_CC_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -c  -D__DEBUG=1  -mdebugger=pickit4   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -DMODEM_ROLE=1 -xassembler-with-cpp -mwarn=-3 -Wa,-a -DXPRJ_default=$(CND_CONF)  -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits $(COMPARISON_BUILD)  -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     -o ${OBJECTDIR}/_ext/291444238/board.p1 ../modem/board/board.c 
 	@-${MV} ${OBJECTDIR}/_ext/291444238/board.d ${OBJECTDIR}/_ext/291444238/board.p1.d 
 	@${FIXDEPS} ${OBJECTDIR}/_ext/291444238/board.p1.d $(SILENT) -rsi ${MP_CC_DIR}../  
 	
@@ -108,7 +108,7 @@ ${OBJECTDIR}/_ext/963368279/spi.p1: ../modem/drivers/spi.c  nbproject/Makefile-$
 	@${MKDIR} "${OBJECTDIR}/_ext/963368279" 
 	@${RM} ${OBJECTDIR}/_ext/963368279/spi.p1.d 
 	@${RM} ${OBJECTDIR}/_ext/963368279/spi.p1 
-	${MP_CC} $(MP_EXTRA_CC_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -c  -D__DEBUG=1  -mdebugger=pickit4   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -xassembler-with-cpp -mwarn=-3 -Wa,-a -DXPRJ_default=$(CND_CONF)  -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits $(COMPARISON_BUILD)  -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     -o ${OBJECTDIR}/_ext/963368279/spi.p1 ../modem/drivers/spi.c 
+	${MP_CC} $(MP_EXTRA_CC_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -c  -D__DEBUG=1  -mdebugger=pickit4   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -DMODEM_ROLE=1 -xassembler-with-cpp -mwarn=-3 -Wa,-a -DXPRJ_default=$(CND_CONF)  -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits $(COMPARISON_BUILD)  -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     -o ${OBJECTDIR}/_ext/963368279/spi.p1 ../modem/drivers/spi.c 
 	@-${MV} ${OBJECTDIR}/_ext/963368279/spi.d ${OBJECTDIR}/_ext/963368279/spi.p1.d 
 	@${FIXDEPS} ${OBJECTDIR}/_ext/963368279/spi.p1.d $(SILENT) -rsi ${MP_CC_DIR}../  
 	
@@ -116,7 +116,7 @@ ${OBJECTDIR}/_ext/963368279/timer.p1: ../modem/drivers/timer.c  nbproject/Makefi
 	@${MKDIR} "${OBJECTDIR}/_ext/963368279" 
 	@${RM} ${OBJECTDIR}/_ext/963368279/timer.p1.d 
 	@${RM} ${OBJECTDIR}/_ext/963368279/timer.p1 
-	${MP_CC} $(MP_EXTRA_CC_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -c  -D__DEBUG=1  -mdebugger=pickit4   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -xassembler-with-cpp -mwarn=-3 -Wa,-a -DXPRJ_default=$(CND_CONF)  -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits $(COMPARISON_BUILD)  -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     -o ${OBJECTDIR}/_ext/963368279/timer.p1 ../modem/drivers/timer.c 
+	${MP_CC} $(MP_EXTRA_CC_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -c  -D__DEBUG=1  -mdebugger=pickit4   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -DMODEM_ROLE=1 -xassembler-with-cpp -mwarn=-3 -Wa,-a -DXPRJ_default=$(CND_CONF)  -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits $(COMPARISON_BUILD)  -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     -o ${OBJECTDIR}/_ext/963368279/timer.p1 ../modem/drivers/timer.c 
 	@-${MV} ${OBJECTDIR}/_ext/963368279/timer.d ${OBJECTDIR}/_ext/963368279/timer.p1.d 
 	@${FIXDEPS} ${OBJECTDIR}/_ext/963368279/timer.p1.d $(SILENT) -rsi ${MP_CC_DIR}../  
 	
@@ -124,23 +124,15 @@ ${OBJECTDIR}/_ext/963368279/uart.p1: ../modem/drivers/uart.c  nbproject/Makefile
 	@${MKDIR} "${OBJECTDIR}/_ext/963368279" 
 	@${RM} ${OBJECTDIR}/_ext/963368279/uart.p1.d 
 	@${RM} ${OBJECTDIR}/_ext/963368279/uart.p1 
-	${MP_CC} $(MP_EXTRA_CC_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -c  -D__DEBUG=1  -mdebugger=pickit4   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -xassembler-with-cpp -mwarn=-3 -Wa,-a -DXPRJ_default=$(CND_CONF)  -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits $(COMPARISON_BUILD)  -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     -o ${OBJECTDIR}/_ext/963368279/uart.p1 ../modem/drivers/uart.c 
+	${MP_CC} $(MP_EXTRA_CC_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -c  -D__DEBUG=1  -mdebugger=pickit4   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -DMODEM_ROLE=1 -xassembler-with-cpp -mwarn=-3 -Wa,-a -DXPRJ_default=$(CND_CONF)  -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits $(COMPARISON_BUILD)  -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     -o ${OBJECTDIR}/_ext/963368279/uart.p1 ../modem/drivers/uart.c 
 	@-${MV} ${OBJECTDIR}/_ext/963368279/uart.d ${OBJECTDIR}/_ext/963368279/uart.p1.d 
 	@${FIXDEPS} ${OBJECTDIR}/_ext/963368279/uart.p1.d $(SILENT) -rsi ${MP_CC_DIR}../  
-	
-${OBJECTDIR}/_ext/2109966821/main.p1: ../modem/main.c  nbproject/Makefile-${CND_CONF}.mk 
-	@${MKDIR} "${OBJECTDIR}/_ext/2109966821" 
-	@${RM} ${OBJECTDIR}/_ext/2109966821/main.p1.d 
-	@${RM} ${OBJECTDIR}/_ext/2109966821/main.p1 
-	${MP_CC} $(MP_EXTRA_CC_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -c  -D__DEBUG=1  -mdebugger=pickit4   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -xassembler-with-cpp -mwarn=-3 -Wa,-a -DXPRJ_default=$(CND_CONF)  -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits $(COMPARISON_BUILD)  -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     -o ${OBJECTDIR}/_ext/2109966821/main.p1 ../modem/main.c 
-	@-${MV} ${OBJECTDIR}/_ext/2109966821/main.d ${OBJECTDIR}/_ext/2109966821/main.p1.d 
-	@${FIXDEPS} ${OBJECTDIR}/_ext/2109966821/main.p1.d $(SILENT) -rsi ${MP_CC_DIR}../  
 	
 ${OBJECTDIR}/_ext/591255540/protocol.p1: ../modem/protocol/protocol.c  nbproject/Makefile-${CND_CONF}.mk 
 	@${MKDIR} "${OBJECTDIR}/_ext/591255540" 
 	@${RM} ${OBJECTDIR}/_ext/591255540/protocol.p1.d 
 	@${RM} ${OBJECTDIR}/_ext/591255540/protocol.p1 
-	${MP_CC} $(MP_EXTRA_CC_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -c  -D__DEBUG=1  -mdebugger=pickit4   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -xassembler-with-cpp -mwarn=-3 -Wa,-a -DXPRJ_default=$(CND_CONF)  -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits $(COMPARISON_BUILD)  -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     -o ${OBJECTDIR}/_ext/591255540/protocol.p1 ../modem/protocol/protocol.c 
+	${MP_CC} $(MP_EXTRA_CC_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -c  -D__DEBUG=1  -mdebugger=pickit4   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -DMODEM_ROLE=1 -xassembler-with-cpp -mwarn=-3 -Wa,-a -DXPRJ_default=$(CND_CONF)  -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits $(COMPARISON_BUILD)  -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     -o ${OBJECTDIR}/_ext/591255540/protocol.p1 ../modem/protocol/protocol.c 
 	@-${MV} ${OBJECTDIR}/_ext/591255540/protocol.d ${OBJECTDIR}/_ext/591255540/protocol.p1.d 
 	@${FIXDEPS} ${OBJECTDIR}/_ext/591255540/protocol.p1.d $(SILENT) -rsi ${MP_CC_DIR}../  
 	
@@ -148,7 +140,7 @@ ${OBJECTDIR}/_ext/277082361/cc1120.p1: ../modem/radio/cc1120.c  nbproject/Makefi
 	@${MKDIR} "${OBJECTDIR}/_ext/277082361" 
 	@${RM} ${OBJECTDIR}/_ext/277082361/cc1120.p1.d 
 	@${RM} ${OBJECTDIR}/_ext/277082361/cc1120.p1 
-	${MP_CC} $(MP_EXTRA_CC_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -c  -D__DEBUG=1  -mdebugger=pickit4   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -xassembler-with-cpp -mwarn=-3 -Wa,-a -DXPRJ_default=$(CND_CONF)  -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits $(COMPARISON_BUILD)  -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     -o ${OBJECTDIR}/_ext/277082361/cc1120.p1 ../modem/radio/cc1120.c 
+	${MP_CC} $(MP_EXTRA_CC_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -c  -D__DEBUG=1  -mdebugger=pickit4   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -DMODEM_ROLE=1 -xassembler-with-cpp -mwarn=-3 -Wa,-a -DXPRJ_default=$(CND_CONF)  -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits $(COMPARISON_BUILD)  -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     -o ${OBJECTDIR}/_ext/277082361/cc1120.p1 ../modem/radio/cc1120.c 
 	@-${MV} ${OBJECTDIR}/_ext/277082361/cc1120.d ${OBJECTDIR}/_ext/277082361/cc1120.p1.d 
 	@${FIXDEPS} ${OBJECTDIR}/_ext/277082361/cc1120.p1.d $(SILENT) -rsi ${MP_CC_DIR}../  
 	
@@ -156,7 +148,7 @@ ${OBJECTDIR}/_ext/277082361/radio_link.p1: ../modem/radio/radio_link.c  nbprojec
 	@${MKDIR} "${OBJECTDIR}/_ext/277082361" 
 	@${RM} ${OBJECTDIR}/_ext/277082361/radio_link.p1.d 
 	@${RM} ${OBJECTDIR}/_ext/277082361/radio_link.p1 
-	${MP_CC} $(MP_EXTRA_CC_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -c  -D__DEBUG=1  -mdebugger=pickit4   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -xassembler-with-cpp -mwarn=-3 -Wa,-a -DXPRJ_default=$(CND_CONF)  -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits $(COMPARISON_BUILD)  -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     -o ${OBJECTDIR}/_ext/277082361/radio_link.p1 ../modem/radio/radio_link.c 
+	${MP_CC} $(MP_EXTRA_CC_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -c  -D__DEBUG=1  -mdebugger=pickit4   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -DMODEM_ROLE=1 -xassembler-with-cpp -mwarn=-3 -Wa,-a -DXPRJ_default=$(CND_CONF)  -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits $(COMPARISON_BUILD)  -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     -o ${OBJECTDIR}/_ext/277082361/radio_link.p1 ../modem/radio/radio_link.c 
 	@-${MV} ${OBJECTDIR}/_ext/277082361/radio_link.d ${OBJECTDIR}/_ext/277082361/radio_link.p1.d 
 	@${FIXDEPS} ${OBJECTDIR}/_ext/277082361/radio_link.p1.d $(SILENT) -rsi ${MP_CC_DIR}../  
 	
@@ -164,16 +156,24 @@ ${OBJECTDIR}/_ext/268264310/crc8.p1: ../modem/util/crc8.c  nbproject/Makefile-${
 	@${MKDIR} "${OBJECTDIR}/_ext/268264310" 
 	@${RM} ${OBJECTDIR}/_ext/268264310/crc8.p1.d 
 	@${RM} ${OBJECTDIR}/_ext/268264310/crc8.p1 
-	${MP_CC} $(MP_EXTRA_CC_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -c  -D__DEBUG=1  -mdebugger=pickit4   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -xassembler-with-cpp -mwarn=-3 -Wa,-a -DXPRJ_default=$(CND_CONF)  -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits $(COMPARISON_BUILD)  -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     -o ${OBJECTDIR}/_ext/268264310/crc8.p1 ../modem/util/crc8.c 
+	${MP_CC} $(MP_EXTRA_CC_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -c  -D__DEBUG=1  -mdebugger=pickit4   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -DMODEM_ROLE=1 -xassembler-with-cpp -mwarn=-3 -Wa,-a -DXPRJ_default=$(CND_CONF)  -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits $(COMPARISON_BUILD)  -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     -o ${OBJECTDIR}/_ext/268264310/crc8.p1 ../modem/util/crc8.c 
 	@-${MV} ${OBJECTDIR}/_ext/268264310/crc8.d ${OBJECTDIR}/_ext/268264310/crc8.p1.d 
 	@${FIXDEPS} ${OBJECTDIR}/_ext/268264310/crc8.p1.d $(SILENT) -rsi ${MP_CC_DIR}../  
+	
+${OBJECTDIR}/_ext/2109966821/main.p1: ../modem/main.c  nbproject/Makefile-${CND_CONF}.mk 
+	@${MKDIR} "${OBJECTDIR}/_ext/2109966821" 
+	@${RM} ${OBJECTDIR}/_ext/2109966821/main.p1.d 
+	@${RM} ${OBJECTDIR}/_ext/2109966821/main.p1 
+	${MP_CC} $(MP_EXTRA_CC_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -c  -D__DEBUG=1  -mdebugger=pickit4   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -DMODEM_ROLE=1 -xassembler-with-cpp -mwarn=-3 -Wa,-a -DXPRJ_default=$(CND_CONF)  -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits $(COMPARISON_BUILD)  -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     -o ${OBJECTDIR}/_ext/2109966821/main.p1 ../modem/main.c 
+	@-${MV} ${OBJECTDIR}/_ext/2109966821/main.d ${OBJECTDIR}/_ext/2109966821/main.p1.d 
+	@${FIXDEPS} ${OBJECTDIR}/_ext/2109966821/main.p1.d $(SILENT) -rsi ${MP_CC_DIR}../  
 	
 else
 ${OBJECTDIR}/_ext/2069575635/app.p1: ../modem/app/app.c  nbproject/Makefile-${CND_CONF}.mk 
 	@${MKDIR} "${OBJECTDIR}/_ext/2069575635" 
 	@${RM} ${OBJECTDIR}/_ext/2069575635/app.p1.d 
 	@${RM} ${OBJECTDIR}/_ext/2069575635/app.p1 
-	${MP_CC} $(MP_EXTRA_CC_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -c   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -xassembler-with-cpp -mwarn=-3 -Wa,-a -DXPRJ_default=$(CND_CONF)  -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits $(COMPARISON_BUILD)  -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     -o ${OBJECTDIR}/_ext/2069575635/app.p1 ../modem/app/app.c 
+	${MP_CC} $(MP_EXTRA_CC_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -c   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -DMODEM_ROLE=1 -xassembler-with-cpp -mwarn=-3 -Wa,-a -DXPRJ_default=$(CND_CONF)  -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits $(COMPARISON_BUILD)  -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     -o ${OBJECTDIR}/_ext/2069575635/app.p1 ../modem/app/app.c 
 	@-${MV} ${OBJECTDIR}/_ext/2069575635/app.d ${OBJECTDIR}/_ext/2069575635/app.p1.d 
 	@${FIXDEPS} ${OBJECTDIR}/_ext/2069575635/app.p1.d $(SILENT) -rsi ${MP_CC_DIR}../  
 	
@@ -181,7 +181,7 @@ ${OBJECTDIR}/_ext/291444238/board.p1: ../modem/board/board.c  nbproject/Makefile
 	@${MKDIR} "${OBJECTDIR}/_ext/291444238" 
 	@${RM} ${OBJECTDIR}/_ext/291444238/board.p1.d 
 	@${RM} ${OBJECTDIR}/_ext/291444238/board.p1 
-	${MP_CC} $(MP_EXTRA_CC_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -c   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -xassembler-with-cpp -mwarn=-3 -Wa,-a -DXPRJ_default=$(CND_CONF)  -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits $(COMPARISON_BUILD)  -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     -o ${OBJECTDIR}/_ext/291444238/board.p1 ../modem/board/board.c 
+	${MP_CC} $(MP_EXTRA_CC_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -c   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -DMODEM_ROLE=1 -xassembler-with-cpp -mwarn=-3 -Wa,-a -DXPRJ_default=$(CND_CONF)  -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits $(COMPARISON_BUILD)  -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     -o ${OBJECTDIR}/_ext/291444238/board.p1 ../modem/board/board.c 
 	@-${MV} ${OBJECTDIR}/_ext/291444238/board.d ${OBJECTDIR}/_ext/291444238/board.p1.d 
 	@${FIXDEPS} ${OBJECTDIR}/_ext/291444238/board.p1.d $(SILENT) -rsi ${MP_CC_DIR}../  
 	
@@ -189,7 +189,7 @@ ${OBJECTDIR}/_ext/963368279/spi.p1: ../modem/drivers/spi.c  nbproject/Makefile-$
 	@${MKDIR} "${OBJECTDIR}/_ext/963368279" 
 	@${RM} ${OBJECTDIR}/_ext/963368279/spi.p1.d 
 	@${RM} ${OBJECTDIR}/_ext/963368279/spi.p1 
-	${MP_CC} $(MP_EXTRA_CC_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -c   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -xassembler-with-cpp -mwarn=-3 -Wa,-a -DXPRJ_default=$(CND_CONF)  -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits $(COMPARISON_BUILD)  -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     -o ${OBJECTDIR}/_ext/963368279/spi.p1 ../modem/drivers/spi.c 
+	${MP_CC} $(MP_EXTRA_CC_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -c   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -DMODEM_ROLE=1 -xassembler-with-cpp -mwarn=-3 -Wa,-a -DXPRJ_default=$(CND_CONF)  -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits $(COMPARISON_BUILD)  -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     -o ${OBJECTDIR}/_ext/963368279/spi.p1 ../modem/drivers/spi.c 
 	@-${MV} ${OBJECTDIR}/_ext/963368279/spi.d ${OBJECTDIR}/_ext/963368279/spi.p1.d 
 	@${FIXDEPS} ${OBJECTDIR}/_ext/963368279/spi.p1.d $(SILENT) -rsi ${MP_CC_DIR}../  
 	
@@ -197,7 +197,7 @@ ${OBJECTDIR}/_ext/963368279/timer.p1: ../modem/drivers/timer.c  nbproject/Makefi
 	@${MKDIR} "${OBJECTDIR}/_ext/963368279" 
 	@${RM} ${OBJECTDIR}/_ext/963368279/timer.p1.d 
 	@${RM} ${OBJECTDIR}/_ext/963368279/timer.p1 
-	${MP_CC} $(MP_EXTRA_CC_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -c   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -xassembler-with-cpp -mwarn=-3 -Wa,-a -DXPRJ_default=$(CND_CONF)  -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits $(COMPARISON_BUILD)  -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     -o ${OBJECTDIR}/_ext/963368279/timer.p1 ../modem/drivers/timer.c 
+	${MP_CC} $(MP_EXTRA_CC_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -c   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -DMODEM_ROLE=1 -xassembler-with-cpp -mwarn=-3 -Wa,-a -DXPRJ_default=$(CND_CONF)  -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits $(COMPARISON_BUILD)  -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     -o ${OBJECTDIR}/_ext/963368279/timer.p1 ../modem/drivers/timer.c 
 	@-${MV} ${OBJECTDIR}/_ext/963368279/timer.d ${OBJECTDIR}/_ext/963368279/timer.p1.d 
 	@${FIXDEPS} ${OBJECTDIR}/_ext/963368279/timer.p1.d $(SILENT) -rsi ${MP_CC_DIR}../  
 	
@@ -205,23 +205,15 @@ ${OBJECTDIR}/_ext/963368279/uart.p1: ../modem/drivers/uart.c  nbproject/Makefile
 	@${MKDIR} "${OBJECTDIR}/_ext/963368279" 
 	@${RM} ${OBJECTDIR}/_ext/963368279/uart.p1.d 
 	@${RM} ${OBJECTDIR}/_ext/963368279/uart.p1 
-	${MP_CC} $(MP_EXTRA_CC_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -c   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -xassembler-with-cpp -mwarn=-3 -Wa,-a -DXPRJ_default=$(CND_CONF)  -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits $(COMPARISON_BUILD)  -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     -o ${OBJECTDIR}/_ext/963368279/uart.p1 ../modem/drivers/uart.c 
+	${MP_CC} $(MP_EXTRA_CC_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -c   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -DMODEM_ROLE=1 -xassembler-with-cpp -mwarn=-3 -Wa,-a -DXPRJ_default=$(CND_CONF)  -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits $(COMPARISON_BUILD)  -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     -o ${OBJECTDIR}/_ext/963368279/uart.p1 ../modem/drivers/uart.c 
 	@-${MV} ${OBJECTDIR}/_ext/963368279/uart.d ${OBJECTDIR}/_ext/963368279/uart.p1.d 
 	@${FIXDEPS} ${OBJECTDIR}/_ext/963368279/uart.p1.d $(SILENT) -rsi ${MP_CC_DIR}../  
-	
-${OBJECTDIR}/_ext/2109966821/main.p1: ../modem/main.c  nbproject/Makefile-${CND_CONF}.mk 
-	@${MKDIR} "${OBJECTDIR}/_ext/2109966821" 
-	@${RM} ${OBJECTDIR}/_ext/2109966821/main.p1.d 
-	@${RM} ${OBJECTDIR}/_ext/2109966821/main.p1 
-	${MP_CC} $(MP_EXTRA_CC_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -c   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -xassembler-with-cpp -mwarn=-3 -Wa,-a -DXPRJ_default=$(CND_CONF)  -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits $(COMPARISON_BUILD)  -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     -o ${OBJECTDIR}/_ext/2109966821/main.p1 ../modem/main.c 
-	@-${MV} ${OBJECTDIR}/_ext/2109966821/main.d ${OBJECTDIR}/_ext/2109966821/main.p1.d 
-	@${FIXDEPS} ${OBJECTDIR}/_ext/2109966821/main.p1.d $(SILENT) -rsi ${MP_CC_DIR}../  
 	
 ${OBJECTDIR}/_ext/591255540/protocol.p1: ../modem/protocol/protocol.c  nbproject/Makefile-${CND_CONF}.mk 
 	@${MKDIR} "${OBJECTDIR}/_ext/591255540" 
 	@${RM} ${OBJECTDIR}/_ext/591255540/protocol.p1.d 
 	@${RM} ${OBJECTDIR}/_ext/591255540/protocol.p1 
-	${MP_CC} $(MP_EXTRA_CC_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -c   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -xassembler-with-cpp -mwarn=-3 -Wa,-a -DXPRJ_default=$(CND_CONF)  -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits $(COMPARISON_BUILD)  -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     -o ${OBJECTDIR}/_ext/591255540/protocol.p1 ../modem/protocol/protocol.c 
+	${MP_CC} $(MP_EXTRA_CC_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -c   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -DMODEM_ROLE=1 -xassembler-with-cpp -mwarn=-3 -Wa,-a -DXPRJ_default=$(CND_CONF)  -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits $(COMPARISON_BUILD)  -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     -o ${OBJECTDIR}/_ext/591255540/protocol.p1 ../modem/protocol/protocol.c 
 	@-${MV} ${OBJECTDIR}/_ext/591255540/protocol.d ${OBJECTDIR}/_ext/591255540/protocol.p1.d 
 	@${FIXDEPS} ${OBJECTDIR}/_ext/591255540/protocol.p1.d $(SILENT) -rsi ${MP_CC_DIR}../  
 	
@@ -229,7 +221,7 @@ ${OBJECTDIR}/_ext/277082361/cc1120.p1: ../modem/radio/cc1120.c  nbproject/Makefi
 	@${MKDIR} "${OBJECTDIR}/_ext/277082361" 
 	@${RM} ${OBJECTDIR}/_ext/277082361/cc1120.p1.d 
 	@${RM} ${OBJECTDIR}/_ext/277082361/cc1120.p1 
-	${MP_CC} $(MP_EXTRA_CC_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -c   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -xassembler-with-cpp -mwarn=-3 -Wa,-a -DXPRJ_default=$(CND_CONF)  -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits $(COMPARISON_BUILD)  -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     -o ${OBJECTDIR}/_ext/277082361/cc1120.p1 ../modem/radio/cc1120.c 
+	${MP_CC} $(MP_EXTRA_CC_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -c   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -DMODEM_ROLE=1 -xassembler-with-cpp -mwarn=-3 -Wa,-a -DXPRJ_default=$(CND_CONF)  -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits $(COMPARISON_BUILD)  -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     -o ${OBJECTDIR}/_ext/277082361/cc1120.p1 ../modem/radio/cc1120.c 
 	@-${MV} ${OBJECTDIR}/_ext/277082361/cc1120.d ${OBJECTDIR}/_ext/277082361/cc1120.p1.d 
 	@${FIXDEPS} ${OBJECTDIR}/_ext/277082361/cc1120.p1.d $(SILENT) -rsi ${MP_CC_DIR}../  
 	
@@ -237,7 +229,7 @@ ${OBJECTDIR}/_ext/277082361/radio_link.p1: ../modem/radio/radio_link.c  nbprojec
 	@${MKDIR} "${OBJECTDIR}/_ext/277082361" 
 	@${RM} ${OBJECTDIR}/_ext/277082361/radio_link.p1.d 
 	@${RM} ${OBJECTDIR}/_ext/277082361/radio_link.p1 
-	${MP_CC} $(MP_EXTRA_CC_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -c   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -xassembler-with-cpp -mwarn=-3 -Wa,-a -DXPRJ_default=$(CND_CONF)  -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits $(COMPARISON_BUILD)  -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     -o ${OBJECTDIR}/_ext/277082361/radio_link.p1 ../modem/radio/radio_link.c 
+	${MP_CC} $(MP_EXTRA_CC_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -c   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -DMODEM_ROLE=1 -xassembler-with-cpp -mwarn=-3 -Wa,-a -DXPRJ_default=$(CND_CONF)  -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits $(COMPARISON_BUILD)  -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     -o ${OBJECTDIR}/_ext/277082361/radio_link.p1 ../modem/radio/radio_link.c 
 	@-${MV} ${OBJECTDIR}/_ext/277082361/radio_link.d ${OBJECTDIR}/_ext/277082361/radio_link.p1.d 
 	@${FIXDEPS} ${OBJECTDIR}/_ext/277082361/radio_link.p1.d $(SILENT) -rsi ${MP_CC_DIR}../  
 	
@@ -245,9 +237,17 @@ ${OBJECTDIR}/_ext/268264310/crc8.p1: ../modem/util/crc8.c  nbproject/Makefile-${
 	@${MKDIR} "${OBJECTDIR}/_ext/268264310" 
 	@${RM} ${OBJECTDIR}/_ext/268264310/crc8.p1.d 
 	@${RM} ${OBJECTDIR}/_ext/268264310/crc8.p1 
-	${MP_CC} $(MP_EXTRA_CC_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -c   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -xassembler-with-cpp -mwarn=-3 -Wa,-a -DXPRJ_default=$(CND_CONF)  -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits $(COMPARISON_BUILD)  -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     -o ${OBJECTDIR}/_ext/268264310/crc8.p1 ../modem/util/crc8.c 
+	${MP_CC} $(MP_EXTRA_CC_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -c   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -DMODEM_ROLE=1 -xassembler-with-cpp -mwarn=-3 -Wa,-a -DXPRJ_default=$(CND_CONF)  -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits $(COMPARISON_BUILD)  -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     -o ${OBJECTDIR}/_ext/268264310/crc8.p1 ../modem/util/crc8.c 
 	@-${MV} ${OBJECTDIR}/_ext/268264310/crc8.d ${OBJECTDIR}/_ext/268264310/crc8.p1.d 
 	@${FIXDEPS} ${OBJECTDIR}/_ext/268264310/crc8.p1.d $(SILENT) -rsi ${MP_CC_DIR}../  
+	
+${OBJECTDIR}/_ext/2109966821/main.p1: ../modem/main.c  nbproject/Makefile-${CND_CONF}.mk 
+	@${MKDIR} "${OBJECTDIR}/_ext/2109966821" 
+	@${RM} ${OBJECTDIR}/_ext/2109966821/main.p1.d 
+	@${RM} ${OBJECTDIR}/_ext/2109966821/main.p1 
+	${MP_CC} $(MP_EXTRA_CC_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -c   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -DMODEM_ROLE=1 -xassembler-with-cpp -mwarn=-3 -Wa,-a -DXPRJ_default=$(CND_CONF)  -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits $(COMPARISON_BUILD)  -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     -o ${OBJECTDIR}/_ext/2109966821/main.p1 ../modem/main.c 
+	@-${MV} ${OBJECTDIR}/_ext/2109966821/main.d ${OBJECTDIR}/_ext/2109966821/main.p1.d 
+	@${FIXDEPS} ${OBJECTDIR}/_ext/2109966821/main.p1.d $(SILENT) -rsi ${MP_CC_DIR}../  
 	
 endif
 
@@ -268,14 +268,14 @@ endif
 ifeq ($(TYPE_IMAGE), DEBUG_RUN)
 ${DISTDIR}/Modem_remote.X.${IMAGE_TYPE}.${OUTPUT_SUFFIX}: ${OBJECTFILES}  nbproject/Makefile-${CND_CONF}.mk    
 	@${MKDIR} ${DISTDIR} 
-	${MP_CC} $(MP_EXTRA_LD_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -Wl,-Map=${DISTDIR}/Modem_remote.X.${IMAGE_TYPE}.map  -D__DEBUG=1  -mdebugger=pickit4  -DXPRJ_default=$(CND_CONF)  -Wl,--defsym=__MPLAB_BUILD=1   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -xassembler-with-cpp -mwarn=-3 -Wa,-a -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto        $(COMPARISON_BUILD) -Wl,--memorysummary,${DISTDIR}/memoryfile.xml -o ${DISTDIR}/Modem_remote.X.${IMAGE_TYPE}.${DEBUGGABLE_SUFFIX}  ${OBJECTFILES_QUOTED_IF_SPACED}     
+	${MP_CC} $(MP_EXTRA_LD_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -Wl,-Map=${DISTDIR}/Modem_remote.X.${IMAGE_TYPE}.map  -D__DEBUG=1  -mdebugger=pickit4  -DXPRJ_default=$(CND_CONF)  -Wl,--defsym=__MPLAB_BUILD=1   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -DMODEM_ROLE=1 -xassembler-with-cpp -mwarn=-3 -Wa,-a -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto        $(COMPARISON_BUILD) -Wl,--memorysummary,${DISTDIR}/memoryfile.xml -o ${DISTDIR}/Modem_remote.X.${IMAGE_TYPE}.${DEBUGGABLE_SUFFIX}  ${OBJECTFILES_QUOTED_IF_SPACED}     
 	@${RM} ${DISTDIR}/Modem_remote.X.${IMAGE_TYPE}.hex 
 	
 	
 else
 ${DISTDIR}/Modem_remote.X.${IMAGE_TYPE}.${OUTPUT_SUFFIX}: ${OBJECTFILES}  nbproject/Makefile-${CND_CONF}.mk   
 	@${MKDIR} ${DISTDIR} 
-	${MP_CC} $(MP_EXTRA_LD_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -Wl,-Map=${DISTDIR}/Modem_remote.X.${IMAGE_TYPE}.map  -DXPRJ_default=$(CND_CONF)  -Wl,--defsym=__MPLAB_BUILD=1   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -xassembler-with-cpp -mwarn=-3 -Wa,-a -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     $(COMPARISON_BUILD) -Wl,--memorysummary,${DISTDIR}/memoryfile.xml -o ${DISTDIR}/Modem_remote.X.${IMAGE_TYPE}.${DEBUGGABLE_SUFFIX}  ${OBJECTFILES_QUOTED_IF_SPACED}     
+	${MP_CC} $(MP_EXTRA_LD_PRE) -mcpu=$(MP_PROCESSOR_OPTION) -Wl,-Map=${DISTDIR}/Modem_remote.X.${IMAGE_TYPE}.map  -DXPRJ_default=$(CND_CONF)  -Wl,--defsym=__MPLAB_BUILD=1   -mdfp="${DFP_DIR}/xc8"  -memi=wordwrite -O0 -fasmfile -maddrqual=ignore -DMODEM_ROLE=1 -xassembler-with-cpp -mwarn=-3 -Wa,-a -msummary=-psect,-class,+mem,-hex,-file  -ginhx32 -Wl,--data-init -mno-keep-startup -mno-download -mno-default-config-bits -std=c99 -gdwarf-3 -mstack=compiled:auto:auto:auto     $(COMPARISON_BUILD) -Wl,--memorysummary,${DISTDIR}/memoryfile.xml -o ${DISTDIR}/Modem_remote.X.${IMAGE_TYPE}.${DEBUGGABLE_SUFFIX}  ${OBJECTFILES_QUOTED_IF_SPACED}     
 	
 	
 endif

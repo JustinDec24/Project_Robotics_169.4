@@ -11,6 +11,9 @@
 /* ---- Initialization / reset ----------------------------------------------*/
 void    cc1120_reset(void);
 bool    cc1120_init_minimal(void);
+/* Same as cc1120_init_minimal, but skips the SCAL strobe at the end. Used
+ * during bring-up debug — SCAL can heat the chip if registers are wrong. */
+bool    cc1120_init_no_scal(void);
 
 /* ---- Generic command strobe ----------------------------------------------*/
 uint8_t cc1120_strobe(uint8_t strobe_addr);

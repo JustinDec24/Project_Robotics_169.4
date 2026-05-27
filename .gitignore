@@ -6,3 +6,8 @@ firmware/*.X/nbproject/private/SuppressibleMessageMemo.properties
 
 # Datasheet text extracts (research scratch)
 *_extract.txt
+
+# MPLAB X local trace files and private state
+firmware/*.X/defmplabxtrace.log
+firmware/*.X/defmplabxtrace.log.inx
+firmware/*.X/nbproject/private/private.xml
