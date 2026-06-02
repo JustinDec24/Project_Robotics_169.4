@@ -359,17 +359,35 @@ uint8_t board_spi_exchange(uint8_t b)
  *                              Timer0 (1 ms tick)
  *=========================================================================*/
 
-/* TMR0 reload for 1 ms with Fosc/4 = 8 MHz, prescaler 1:1, 16-bit mode:
- *   8000 cycles -> reload = 65536 - 8000 = 57536 = 0xE0C0. */
+/* TMR0 reload for 1 ms with HFINTOSC source ~= 8 MHz, prescaler 1:1.
+ * NOTE: empirically measured. The HFINTOSC tap that Timer0 sees is fixed
+ * at ~8 MHz on PIC18F26Q10 regardless of the CPU OSCFRQ setting — when
+ * we ran with prescaler 1:1024 we observed millis() advancing at ~250 Hz,
+ * which corresponds to a ~7.86 MHz source. Using prescaler 1:1 gives 1 ms
+ * resolution with reload = 65536 - 8000 = 57536 = 0xE0C0. */
 #define TMR0_RELOAD_H   0xE0u
 #define TMR0_RELOAD_L   0xC0u
 
 void board_timer_hw_init(void)
 {
-    T0CON0 = 0x00u;                 /* off while we configure */
-    T0CON1 = 0x80u;                 /* CS=Fosc/4, sync, prescaler 1:1 */
-    TMR0H  = TMR0_RELOAD_H;         /* high byte buffered */
-    TMR0L  = TMR0_RELOAD_L;         /* writing low byte commits both */
+    /* PMD acts as a master power-gate for peripherals; clear it for
+     * good measure. */
+    PMD1bits.TMR0MD = 0;
+    PMD1bits.TMR1MD = 0;
+    PMD1bits.TMR2MD = 0;
+
+    /* === Calibrated Timer0 config for PIC18F26Q10 ===
+     * Clock source: HFINTOSC (T0CS=010) — empirically ~8 MHz on this
+     * chip's Timer0 tap. Other documented sources (Fosc/4 = T0CS=001)
+     * were tried and gave a stuck counter, so we stick with what works.
+     * Prescaler 1:1 -> timer ticks at ~8 MHz.
+     * Reload 0xE0C0 (-8000) -> overflow every 1 ms (within ~2 %). */
+    T0CON0 = 0x00u;                 /* disable while configuring */
+    T0CON1 = 0x40u;                 /* T0CS=010 (HFINTOSC),
+                                     * T0ASYNC=0 (sync),
+                                     * T0CKPS=0000 (1:1) */
+    TMR0H  = TMR0_RELOAD_H;
+    TMR0L  = TMR0_RELOAD_L;
     PIR0bits.TMR0IF = 0;
     PIE0bits.TMR0IE = 1;
     T0CON0 = 0x90u;                 /* T0EN=1, T016BIT=1, OUTPS=0 */

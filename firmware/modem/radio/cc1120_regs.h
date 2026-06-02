@@ -144,12 +144,22 @@
 #define CC1120_XOSC1            0x36
 #define CC1120_XOSC0            0x37
 
-/* Extended status registers (read-only): */
-#define CC1120_MARCSTATE        0x73
-#define CC1120_RSSI1            0x71
-#define CC1120_LQI_VAL          0x72
-#define CC1120_NUM_TXBYTES      0x7D
-#define CC1120_NUM_RXBYTES      0x7E
+/* Extended status registers (read-only).
+ * Addresses verified against CC112x User Guide SWRU295E:
+ *   - 0x71 RSSI1, 0x73 MARCSTATE, 0x74 LQI_VAL          (left column listing)
+ *   - 0xD6 NUM_TXBYTES, 0xD7 NUM_RXBYTES                (right column listing)
+ *   - 0xD8 FIFO_NUM_TXBYTES, 0xD9 FIFO_NUM_RXBYTES
+ * Earlier versions of this header had 0x72 for LQI_VAL and 0x7D / 0x7E for
+ * NUM_TXBYTES / NUM_RXBYTES, which actually map to LQI_VAL / CFM_RX_DATA_OUT /
+ * CFM_TX_DATA_IN respectively — i.e. unrelated registers that returned 0,
+ * masking real TX FIFO state during bring-up. */
+#define CC1120_RSSI1                0x71
+#define CC1120_MARCSTATE            0x73
+#define CC1120_LQI_VAL              0x74
+#define CC1120_NUM_TXBYTES          0xD6
+#define CC1120_NUM_RXBYTES          0xD7
+#define CC1120_FIFO_NUM_TXBYTES     0xD8   /* free entries in TX FIFO       */
+#define CC1120_FIFO_NUM_RXBYTES     0xD9   /* bytes available in RX FIFO    */
 
 /* ===== MARCSTATE values ===================================================*/
 #define MARCSTATE_IDLE          0x01

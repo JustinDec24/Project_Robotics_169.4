@@ -308,13 +308,77 @@ Pin 22 (AVDD_SYNTH) : "la chip reset quand on touche la cap" → cap C201 a une 
 
 ## Programmes de diagnostic développés (résumé fonctionnel)
 
-| Programme | But | Quoi il exécute |
-|---|---|---|
-| **Phase 4** | Init complet + cal | Reset → registres → SCAL → lit MARCSTATE et FS_VCO/CHP |
-| **Phase 4b** | Vérifier que la chip est vivante (no SCAL) | Reset → lit PARTNUMBER, PARTVERSION, 11 valeurs reset, halt 30 s en IDLE |
-| **Phase 4c** | Sonder le sous-système analog | Test XOSC_STABLE via GDO0, sanité SPI, trace MARCSTATE pendant cal avec abort rapide |
-| **Phase 5** *(prévu)* | Tester TX sur carte PC | Écriture TX FIFO, strobe STX, vérification NUM_TXBYTES + MARCSTATE |
-| **Phase 6** *(prévu)* | Activer la stack applicative | `app_init()` + `app_task()` en boucle, commandes UART parsing |
+| Programme | But | Quoi il exécute | Statut |
+|---|---|---|---|
+| **Phase 4** | Init complet + cal | Reset → registres → SCAL → lit MARCSTATE et FS_VCO/CHP | ✅ Passe sur PC |
+| **Phase 4b** | Vérifier que la chip est vivante (no SCAL) | Reset → lit PARTNUMBER, PARTVERSION, 11 valeurs reset, halt 30 s en IDLE | ✅ Passe sur PC + robot (digital alive) |
+| **Phase 4c** | Sonder le sous-système analog | Test XOSC_STABLE via GDO0, sanité SPI, trace MARCSTATE pendant cal avec abort rapide | ✅ Discriminant PC (cal OK) vs robot (XOSC dead) |
+| **Phase 5** | Tester TX sur carte PC | Écriture TX FIFO, strobe STX, vérification NUM_TXBYTES + MARCSTATE | ✅ **Validé** (6 cycles consécutifs avec verdict OK) |
+| **Phase 6** | Activer la stack applicative côté firmware | `app_init()` + `app_task()` en boucle | ✅ **Validé** (commande UART → réponse framed via la TUI, timeouts firmware fonctionnels) |
+
+### Phase 5 — résultat validation
+
+Sortie d'un cycle TX réussi (carte PC, ~4.5 ms en TX state) :
+
+```
+NUM_TXBYTES before STX = 11 (expect 11)
+MARCSTATE trace: 07 13 13 13 13 13 13 13 13 01 01 01
+NUM_TXBYTES after  = 0 (expect 0)
+SNOP final status  = 0x0F (IDLE)
+Verdict: TX OK
+```
+
+→ La chip parcourt bien `SETTLING (0x07) → TX (0x13)` pendant ~4.5 ms, puis revient à IDLE, et la FIFO se vide à 0. La carte PC **émet effectivement** sur 169.4 MHz.
+
+### Bug latent corrigé pendant Phase 5
+
+Découvert pendant la validation TX : les adresses étendues `CC1120_NUM_TXBYTES = 0x7D` et `CC1120_NUM_RXBYTES = 0x7E` dans `cc1120_regs.h` étaient **fausses** — elles pointaient vers `CFM_RX_DATA_OUT` / `CFM_TX_DATA_IN` (registres CFM_DATA non liés, retournant toujours 0). De même `LQI_VAL = 0x72` était `0x74` en réalité.
+
+Adresses corrigées d'après SWRU295E :
+- `NUM_TXBYTES = 0xD6`
+- `NUM_RXBYTES = 0xD7`
+- `LQI_VAL = 0x74`
+- Ajout des `FIFO_NUM_TXBYTES = 0xD8` et `FIFO_NUM_RXBYTES = 0xD9`
+
+**Impact** : `radio_link_receive()` utilise `cc1120_get_num_rxbytes()` pour décider s'il y a un paquet à lire. Avec l'ancienne adresse, cette fonction retournait toujours 0 → la couche app aurait **jamais reçu de paquet RF** même avec un robot en face. Bug latent invisible pendant tout le bring-up parce qu'on n'avait pas encore activé Phase 6.
+
+### Bug du timer corrigé pendant Phase 6
+
+Au démarrage de Phase 6, les timeouts firmware (CONNECT_TIMEOUT, LINK_LOST, STATS_PUSH, ARQ_ACK_TIMEOUT) ne firaient jamais : `millis()` retournait systématiquement 0. La cause : configuration Timer0 incorrecte dans `board_timer_hw_init`.
+
+Évolution du diagnostic :
+
+1. **Suspect initial** : `T0CON1 = 0x80` avec commentaire "CS=Fosc/4". Mais sur PIC18F26Q10, `T0CON1.T0CS<2:0>` est codé sur les bits 7-5, et `0x80` correspond à `T0CS=100` = LFINTOSC (31 kHz). Bug de bit-encoding.
+
+2. **Tentative `T0CON1 = 0x20`** (T0CS=001 supposé Fosc/4 d'après une lecture du datasheet) : timer toujours figé. Dump des registres a confirmé que `TMR0L` ne s'incrémentait pas du tout entre deux échantillons espacés de 5000 NOP — le module Timer0 ne tournait pas.
+
+3. **Tentative `T0CON1 = 0x4A`** (T0CS=010 = HFINTOSC, prescaler 1:1024, config copiée de MCC) : timer démarre, mais `millis()` avance à ~250 Hz au lieu de 1 kHz attendu.
+
+4. **Conclusion** : sur PIC18F26Q10, le tap HFINTOSC visible par Timer0 est fixé à ~8 MHz indépendamment du réglage `OSCFRQ` (qui contrôle uniquement le tap visible par la CPU). Avec prescaler 1:1024 sur une source 8 MHz, on tique à 7.8 kHz → millis incrémente trop lentement. Solution finale : `T0CON1 = 0x40` (HFINTOSC source, prescaler 1:1) avec reload `0xE0C0` (= -8000 ticks) → 1 ms par overflow.
+
+5. **Bonus** : `PMD1.TMR0MD` (Peripheral Module Disable) explicitement forcé à 0 dans `board_timer_hw_init` pour éviter un éventuel power-gate du module Timer0 hérité d'un état précédent.
+
+---
+
+## Outils hôte (côté PC)
+
+### `host_tools/modem_console/` — TUI Python pour piloter le modem
+
+Interface terminal interactive (full-screen, layout en panneaux multiples) permettant à l'utilisateur de piloter la carte PC depuis le PC :
+
+- **Status panel** : état de la connexion radio (connecté/déconnecté, ID robot, RSSI moyen, PER, RTT, dernier TX/RX, port et baudrate)
+- **Discovery panel** : tableau temps-réel des robots détectés par scan (ID, RSSI, age)
+- **Event log** : feed horodaté coloré (TX, RX, LOG, erreurs)
+- **Prompt de commandes** : `scan`, `connect <id>`, `disconnect`, `send "<texte>"`, `stats`, `clear`, `help`, `quit`
+
+### Architecture
+- `protocol.py` — encodage/décodage du framing UART `[0xAA][0x55][LEN][TYPE][PAYLOAD][CRC8]`, identique au firmware. CRC-8 polynôme 0x07 init 0x00, vérifié par smoke-test.
+- `serial_link.py` — port série en lecture continue dans un thread daemon, événements poussés dans une queue Python (frame décodée OU bytes bruts).
+- `tui.py` — app **Textual** avec widgets Header, Static (status), DataTable (discovery), RichLog (events), Input (commandes), Footer.
+- `__main__.py` — entry point CLI avec `--port`, `--baud`, `--list`.
+
+### Pré-requis côté firmware
+La TUI parle au firmware via le framing protocole. Tant que Phase 6 (activation de `app_task()` dans `main.c`) n'est pas faite, le firmware n'émet que les logs UART non-framés des phases de diagnostic. La TUI les affiche quand même dans le log sous le tag `UART`, mais aucun message protocole (SCAN_RESULT, CONNECTED, STATS, etc.) ne sera reçu.
 
 ---
 
@@ -329,4 +393,14 @@ Pin 22 (AVDD_SYNTH) : "la chip reset quand on touche la cap" → cap C201 a une 
 
 ---
 
-*Dernière mise à jour : 2026-06-02*
+### Carte PC — état après Phase 6
+
+- ✅ Calibration radio CC1120 OK
+- ✅ Émission TX sur 169.4 MHz validée (Phase 5)
+- ✅ Stack applicative wirée et fonctionnelle (Phase 6)
+- ✅ Console TUI (`host_tools/modem_console`) interagit avec le firmware via le framing UART : commandes envoyées, réponses reçues, timeouts firmware (CONNECT_TIMEOUT etc.) déclenchent correctement
+- ⏸️ Test cross-board nécessite la carte robot avec son CC1120 remplacé
+
+---
+
+*Dernière mise à jour : 2026-06-02 — Phase 5 et Phase 6 validées, timer ISR corrigé.*

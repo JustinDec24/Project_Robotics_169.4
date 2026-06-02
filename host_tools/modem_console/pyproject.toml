@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "modem-console"
+version = "0.1.0"
+description = "TUI console for the RF169 modem (PC side)."
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [{name = "Justin Décaillet"}]
+dependencies = [
+    "pyserial >= 3.5",
+    "textual >= 0.50",
+]
+
+[project.scripts]
+modem-console = "modem_console.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["modem_console*"]

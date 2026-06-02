@@ -11,3 +11,10 @@ firmware/*.X/nbproject/private/SuppressibleMessageMemo.properties
 firmware/*.X/defmplabxtrace.log
 firmware/*.X/defmplabxtrace.log.inx
 firmware/*.X/nbproject/private/private.xml
+
+# Python tooling artefacts (host_tools/)
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
