@@ -11,9 +11,14 @@
 /* ---- Initialization / reset ----------------------------------------------*/
 void    cc1120_reset(void);
 bool    cc1120_init_minimal(void);
-/* Same as cc1120_init_minimal, but skips the SCAL strobe at the end. Used
- * during bring-up debug — SCAL can heat the chip if registers are wrong. */
+/* Same as cc1120_init_minimal, but skips the SCAL strobe at the end. */
 bool    cc1120_init_no_scal(void);
+/* TI errata SWRZ039D §1.1 manual calibration routine.
+ * Performs SCAL twice with different VCDAC starting points and keeps the
+ * result with the higher FS_VCO2 cap-array index. This works around the
+ * "wrong cap-array index" bug present on PARTVERSION 0x21 silicon and is
+ * safe to use on 0x23+ silicon as well. */
+void    cc1120_manual_cal(void);
 
 /* ---- Generic command strobe ----------------------------------------------*/
 uint8_t cc1120_strobe(uint8_t strobe_addr);

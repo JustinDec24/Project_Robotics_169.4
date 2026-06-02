@@ -256,145 +256,116 @@ void cc1120_flush_tx(void)
     cc1120_strobe_sftx();
 }
 
-/* ===== Register configuration table =======================================*/
-/* Standard registers (addr 0x00..0x2E). Each entry = { addr, value }. */
+/* ===== Register configuration table =======================================
+ * SmartRF Studio export for this PCB's target config:
+ *   - 169.4 MHz carrier (FREQ = 0x69E466, LO_DIV=20, XOSC=32 MHz)
+ *   - 2-GFSK modulation, 4.8 kbps symbol rate
+ *   - 100 kHz RX bandwidth (wide to ease tuning during bring-up)
+ *   - Variable-length packets, CRC, APPEND_STATUS
+ *   - GDO0 = PKT_SYNC_RXTX
+ *
+ * Addresses use the corrected cc1120_regs.h (FREQ_IF_CFG at 0x0F, full
+ * PA_CFG2/1/0 block at 0x2B/2C/2D, etc.).
+ *============================================================================*/
+
+/* Standard registers (addr 0x00..0x2E). */
 static const uint8_t cc1120_std_regs_[][2] = {
-    /* IO config: GDO0 = PKT_SYNC_RXTX (0x06). High when sync word is
-     * detected (or first preamble bit goes out in TX), low at end of
-     * packet. Wired to RB1/INT0 (via PPS) on the PIC. */
-    { CC1120_IOCFG3,        0x30u },     /* unused, hi-Z */
-    { CC1120_IOCFG2,        0x30u },     /* unused, hi-Z */
-    { CC1120_IOCFG1,        0x30u },     /* unused, hi-Z */
-    { CC1120_IOCFG0,        0x06u },     /* GDO0 = PKT_SYNC_RXTX */
-
-    /* Sync word: 32-bit 0x930B51DE (TI default for narrowband). */
-    { CC1120_SYNC3,         0x93u },
-    { CC1120_SYNC2,         0x0Bu },
-    { CC1120_SYNC1,         0x51u },
-    { CC1120_SYNC0,         0xDEu },
-    { CC1120_SYNC_CFG1,     0x0Bu },     /* 32-bit sync, threshold default */
-    { CC1120_SYNC_CFG0,     0x17u },
-
-    /* Modulation: 2-GFSK, 5 kHz deviation. */
-    { CC1120_DEVIATION_M,   0x48u },
-    { CC1120_MODCFG_DEV_E,  0x05u },     /* MOD_FORMAT=000 (2-FSK), GFSK shaping via TX_FILT */
-
-    /* DC blocking, IQ correction, AGC defaults from SmartRF profile. */
-    { CC1120_DCFILT_CFG,    0x1Cu },
-    { CC1120_PREAMBLE_CFG1, 0x18u },     /* 4 bytes of preamble */
-    { CC1120_PREAMBLE_CFG0, 0x2Au },
-    { CC1120_IQIC,          0xC6u },
-    { CC1120_CHAN_BW,       0x08u },     /* 100 kHz RX BW (large for 4.8 kbps to ease tuning) */
-    { CC1120_MDMCFG1,       0x46u },
-    { CC1120_MDMCFG0,       0x05u },
-
-    /* Symbol rate ~4.8 ksps. (SRATE_M, SRATE_E split across these regs.) */
-    { CC1120_SYMBOL_RATE2,  0x84u },     /* SRATE_E=8, SRATE_M[19:16]=4 */
-    { CC1120_SYMBOL_RATE1,  0x7Au },
-    { CC1120_SYMBOL_RATE0,  0xE1u },
-
-    /* AGC tuning (SmartRF profile values). */
-    { CC1120_AGC_REF,       0x27u },
-    { CC1120_AGC_CS_THR,    0xF1u },     /* -15 dB carrier-sense threshold (signed) */
-    { CC1120_AGC_GAIN_ADJUST, 0x00u },
-    { CC1120_AGC_CFG3,      0x91u },
-    { CC1120_AGC_CFG2,      0x20u },
-    { CC1120_AGC_CFG1,      0xA9u },
-    { CC1120_AGC_CFG0,      0xCFu },
-
-    /* FIFO threshold: assert above 32 bytes (default-ish). */
-    { CC1120_FIFO_CFG,      0x00u },
-    { CC1120_DEV_ADDR,      0x00u },     /* hardware addr filter disabled (we filter in SW) */
-    /* SETTLING_CFG = 0x13: FS_AUTOCAL = 01 (calibrate on IDLE -> RX/TX
-     * transition). No manual SCAL — auto-cal handles everything when we
-     * strobe SRX or STX. */
-    { CC1120_SETTLING_CFG,  0x13u },
-
-    /* Frequency synthesizer band: 169 MHz -> LO_DIVIDER=20.
-     * FS_CFG bits[3:0] = 0b1010 (FSD_BANDSELECT = 10 -> 164..192 MHz),
-     * bit 4 = 1 (FSD_BANDSELECT_LOCK_EN). */
-    { CC1120_FS_CFG,        0x1Au },
-
-    { CC1120_WOR_CFG1,      0x08u },
-    { CC1120_WOR_CFG0,      0x21u },
-    { CC1120_WOR_EVENT0_MSB,0x00u },
-    { CC1120_WOR_EVENT0_LSB,0x00u },
-    { CC1120_RXDCM_TIME,    0x00u },
-
-    /* Packet handling:
-     *   PKT_CFG2 = 0x04 -> CCA disabled (we manage half-duplex in SW).
-     *   PKT_CFG1 = 0x05 -> APPEND_STATUS=1, ADDR_CHECK=00 (off), CRC enabled.
-     *   PKT_CFG0 = 0x20 -> variable length mode (length read from first byte). */
-    { CC1120_PKT_CFG2,      0x04u },
-    { CC1120_PKT_CFG1,      0x05u },
-    { CC1120_PKT_CFG0,      0x20u },
-
-    /* RFEND_CFG1 = 0x0F -> after TX, go directly to RX (no IDLE). */
-    { CC1120_RFEND_CFG1,    0x0Fu },
-    { CC1120_RFEND_CFG0,    0x00u },
-
-    /* PA: ramp + power. 0x7F is roughly +14 dBm typical (regulatory check!).
-     * Adjust per your duty-cycle and ETSI subband. */
-    { CC1120_PA_CFG1,       0x7Fu },
-    { CC1120_PA_CFG0,       0x56u },
-    { CC1120_ASK_CFG,       0x0Fu },
-
-    /* PKT_LEN: max packet length the radio will accept in variable mode. */
-    { CC1120_PKT_LEN,       (uint8_t)RF_MAX_PKT_SIZE },
+    { CC1120_IOCFG3,         0x30u },     /* unused, hi-Z */
+    { CC1120_IOCFG2,         0x30u },     /* unused, hi-Z */
+    { CC1120_IOCFG1,         0x30u },     /* unused, hi-Z */
+    { CC1120_IOCFG0,         0x06u },     /* GDO0 = PKT_SYNC_RXTX */
+    { CC1120_SYNC3,          0x93u },
+    { CC1120_SYNC2,          0x0Bu },
+    { CC1120_SYNC1,          0x51u },
+    { CC1120_SYNC0,          0xDEu },
+    { CC1120_SYNC_CFG1,      0x0Bu },
+    { CC1120_SYNC_CFG0,      0x17u },
+    { CC1120_DEVIATION_M,    0x48u },
+    { CC1120_MODCFG_DEV_E,   0x05u },     /* 2-FSK + GFSK shaping */
+    { CC1120_DCFILT_CFG,     0x1Cu },
+    { CC1120_PREAMBLE_CFG1,  0x18u },     /* 4-byte preamble */
+    { CC1120_PREAMBLE_CFG0,  0x2Au },
+    { CC1120_FREQ_IF_CFG,    0x40u },     /* SmartRF default for 169 MHz narrowband */
+    { CC1120_IQIC,           0xC6u },
+    { CC1120_CHAN_BW,        0x08u },     /* 100 kHz RX BW */
+    { CC1120_MDMCFG1,        0x46u },
+    { CC1120_MDMCFG0,        0x05u },
+    { CC1120_SYMBOL_RATE2,   0x84u },     /* 4.8 ksps */
+    { CC1120_SYMBOL_RATE1,   0x7Au },
+    { CC1120_SYMBOL_RATE0,   0xE1u },
+    { CC1120_AGC_REF,        0x27u },
+    { CC1120_AGC_CS_THR,     0xF1u },
+    { CC1120_AGC_GAIN_ADJUST,0x00u },
+    { CC1120_AGC_CFG3,       0x91u },
+    { CC1120_AGC_CFG2,       0x20u },
+    { CC1120_AGC_CFG1,       0xA9u },
+    { CC1120_AGC_CFG0,       0xCFu },
+    { CC1120_FIFO_CFG,       0x00u },
+    { CC1120_DEV_ADDR,       0x00u },
+    { CC1120_SETTLING_CFG,   0x0Bu },     /* FSREG_TIME=3 (max), no auto-cal */
+    { CC1120_FS_CFG,         0x1Au },     /* LO_DIV=20, 164..192 MHz band */
+    { CC1120_WOR_CFG1,       0x08u },
+    { CC1120_WOR_CFG0,       0x21u },
+    { CC1120_WOR_EVENT0_MSB, 0x00u },
+    { CC1120_WOR_EVENT0_LSB, 0x00u },
+    { CC1120_PKT_CFG2,       0x04u },     /* CCA disabled */
+    { CC1120_PKT_CFG1,       0x05u },     /* APPEND_STATUS, CRC enabled */
+    { CC1120_PKT_CFG0,       0x20u },     /* variable length */
+    { CC1120_RFEND_CFG1,     0x0Fu },     /* TX -> RX after packet */
+    { CC1120_RFEND_CFG0,     0x00u },
+    { CC1120_PA_CFG2,        0x7Fu },
+    { CC1120_PA_CFG1,        0x56u },
+    { CC1120_PA_CFG0,        0x7Cu },
+    { CC1120_PKT_LEN,        0xFFu },
 };
 
 /* Extended registers (accessed via 0x2F prefix).
- * Values from TI SmartRF Studio profile for CC1120 at 169.4 MHz, 32 MHz
- * XOSC, 2-GFSK, 4.8 kbps. Includes all FS_* / IF_ADC* / XOSC* registers
- * that MUST be initialised — leaving them at reset defaults breaks the
- * synthesizer calibration. */
+ * SmartRF Studio export for 169.4 MHz / 4.8 kbps 2-GFSK / 32 MHz XOSC. */
 static const uint8_t cc1120_ext_regs_[][2] = {
-    { CC1120_IF_MIX_CFG,    0x00u },
-    { CC1120_FREQOFF_CFG,   0x22u },
+    { CC1120_IF_MIX_CFG,     0x00u },
+    { CC1120_FREQOFF_CFG,    0x22u },
 
     /* FREQ for 169.4 MHz, LO_DIV=20, XOSC=32 MHz.
-     * FREQ = 169.4e6 * 20 * 65536 / 32e6 = 0x69E466 (SmartRF rounding). */
-    { CC1120_FREQ2,         0x69u },
-    { CC1120_FREQ1,         0xE4u },
-    { CC1120_FREQ0,         0x66u },
+     * FREQ = 169.4e6 * 20 * 65536 / 32e6 = 0x69E466. */
+    { CC1120_FREQ2,          0x69u },
+    { CC1120_FREQ1,          0xE4u },
+    { CC1120_FREQ0,          0x66u },
 
-    /* IF/ADC config — SmartRF Studio narrowband 169 MHz */
-    { CC1120_IF_ADC2,       0x02u },
-    { CC1120_IF_ADC1,       0xA6u },
-    { CC1120_IF_ADC0,       0x04u },
+    /* IF/ADC config */
+    { CC1120_IF_ADC2,        0x02u },
+    { CC1120_IF_ADC1,        0xA6u },
+    { CC1120_IF_ADC0,        0x04u },
 
-    /* Frequency Synthesizer registers — full set required for the synth
-     * to calibrate and lock correctly. */
-    { CC1120_FS_DIG1,       0x00u },
-    { CC1120_FS_DIG0,       0x5Fu },
-    { CC1120_FS_CAL3,       0x00u },
-    { CC1120_FS_CAL2,       0x20u },
-    { CC1120_FS_CAL1,       0x40u },
-    { CC1120_FS_CAL0,       0x0Eu },
-    { CC1120_FS_CHP,        0x28u },
-    { CC1120_FS_DIVTWO,     0x03u },
-    { CC1120_FS_DSM1,       0x00u },
-    { CC1120_FS_DSM0,       0x33u },
-    { CC1120_FS_DVC1,       0xFFu },
-    { CC1120_FS_DVC0,       0x17u },
-    { CC1120_FS_LBI,        0x00u },
-    { CC1120_FS_PFD,        0x50u },
-    { CC1120_FS_PRE,        0x6Eu },
-    { CC1120_FS_REG_DIV_CML,0x14u },
-    { CC1120_FS_SPARE,      0xACu },
-    { CC1120_FS_VCO4,       0x14u },
-    { CC1120_FS_VCO3,       0x00u },
-    { CC1120_FS_VCO2,       0x00u },
-    { CC1120_FS_VCO1,       0x00u },
-    { CC1120_FS_VCO0,       0xB4u },
+    /* Frequency Synthesizer */
+    { CC1120_FS_DIG1,        0x00u },
+    { CC1120_FS_DIG0,        0x5Fu },
+    { CC1120_FS_CAL3,        0x00u },
+    { CC1120_FS_CAL2,        0x20u },
+    { CC1120_FS_CAL1,        0x40u },
+    { CC1120_FS_CAL0,        0x0Eu },
+    { CC1120_FS_CHP,         0x28u },
+    { CC1120_FS_DIVTWO,      0x03u },
+    { CC1120_FS_DSM1,        0x00u },
+    { CC1120_FS_DSM0,        0x33u },
+    { CC1120_FS_DVC1,        0xFFu },
+    { CC1120_FS_DVC0,        0x17u },
+    { CC1120_FS_LBI,         0x00u },
+    { CC1120_FS_PFD,         0x50u },
+    { CC1120_FS_PRE,         0x6Eu },
+    { CC1120_FS_REG_DIV_CML, 0x14u },
+    { CC1120_FS_SPARE,       0xACu },
+    { CC1120_FS_VCO4,        0x14u },
+    { CC1120_FS_VCO3,        0x00u },
+    { CC1120_FS_VCO2,        0x00u },
+    { CC1120_FS_VCO1,        0x00u },
+    { CC1120_FS_VCO0,        0xB4u },
 
-    /* Crystal oscillator trim — defaults are typically wrong for the
-     * external 32 MHz crystal on the modem PCB. */
-    { CC1120_XOSC5,         0x0Eu },
-    { CC1120_XOSC4,         0xA0u },
-    { CC1120_XOSC3,         0x03u },
-    { CC1120_XOSC2,         0x04u },
-    { CC1120_XOSC1,         0x03u },
+    /* Crystal oscillator trim */
+    { CC1120_XOSC5,          0x0Eu },
+    { CC1120_XOSC4,          0xA0u },
+    { CC1120_XOSC3,          0x03u },
+    { CC1120_XOSC2,          0x04u },
+    { CC1120_XOSC1,          0x03u },
 };
 
 /* ===== Minimal init =======================================================*/
@@ -404,34 +375,120 @@ bool cc1120_init_minimal(void)
     uint16_t i;
     uint8_t  partnum;
 
-    cc1120_reset();
+    /* Matches the working RF169Hz.X firmware sequence from last year:
+     *   SRES -> 10 ms -> SIDLE -> 10 ms -> ApplyConfig -> 10 ms -> SCAL -> SFTX */
 
-    /* Verify SPI link by reading PARTNUMBER (extended reg 0x8F).
-     * Expected: 0x48 (CC1120). We treat 0x00 or 0xFF as link broken. */
+    cc1120_reset();
+    Delay_ms(10);
+
+    /* Verify SPI link by reading PARTNUMBER (extended reg 0x8F). */
     partnum = cc1120_ext_reg_read(0x8F);
     if (partnum == 0x00u || partnum == 0xFFu) {
         return false;
     }
 
-    /* Write standard registers. */
+    /* Explicit SIDLE strobe before writing registers — ensures the chip
+     * is in a known IDLE state. */
+    cc1120_strobe(CC1120_SIDLE);
+    Delay_ms(10);
+
+    /* Write standard registers, with small delays between writes (matches
+     * the working RF169Hz.X firmware that uses __delay_us(100) per write). */
     for (i = 0; i < (sizeof(cc1120_std_regs_) / sizeof(cc1120_std_regs_[0])); i++) {
         cc1120_reg_write(cc1120_std_regs_[i][0], cc1120_std_regs_[i][1]);
+        Delay_us(100);
     }
-    /* Write extended registers. */
     for (i = 0; i < (sizeof(cc1120_ext_regs_) / sizeof(cc1120_ext_regs_[0])); i++) {
         cc1120_ext_reg_write(cc1120_ext_regs_[i][0], cc1120_ext_regs_[i][1]);
+        Delay_us(100);
     }
+    Delay_ms(10);
 
-    /* No manual SCAL — auto-cal is enabled via SETTLING_CFG = 0x13 and
-     * will run automatically when the chip transitions from IDLE to RX/TX.
-     * Manual SCAL was hanging in init even with correct FS registers, so
-     * we let the chip do auto-cal at the right moment instead. */
+    /* Single SCAL strobe — works with the SmartRF Studio config now that
+     * SETTLING_CFG has FSREG_TIME = 3 (max regulator settling time). */
+    cc1120_strobe(CC1120_SCAL);
+    Delay_ms(10);
 
-    /* Flush FIFOs and stay IDLE; the application picks the active state. */
-    cc1120_flush_rx();
-    cc1120_flush_tx();
+    /* Flush TX FIFO (the working firmware does SFTX, not SFRX). */
+    cc1120_strobe(CC1120_SFTX);
+    Delay_ms(10);
 
     return true;
+}
+
+/* ===== TI errata SWRZ039D manual calibration =============================*/
+void cc1120_manual_cal(void)
+{
+    uint8_t original_fs_cal2;
+    uint8_t high_fs_vco2, high_fs_vco4, high_fs_chp;
+    uint8_t mid_fs_vco2,  mid_fs_vco4,  mid_fs_chp;
+    uint16_t timeout;
+    uint8_t marc;
+
+    /* 1) Set VCO cap-array to 0. */
+    cc1120_ext_reg_write(CC1120_FS_VCO2, 0x00u);
+
+    /* 2) Save original FS_CAL2. */
+    original_fs_cal2 = cc1120_ext_reg_read(CC1120_FS_CAL2);
+
+    /* 3) Start with HIGH VCDAC (original + 2). */
+    cc1120_ext_reg_write(CC1120_FS_CAL2, (uint8_t)(original_fs_cal2 + 2u));
+
+    /* 4) Calibrate. */
+    cc1120_strobe(CC1120_SCAL);
+
+    /* 5) Wait for MARCSTATE = IDLE (= 0x01 after our & 0x1F mask). */
+    timeout = 5000u;     /* ~5 s worst case */
+    while (timeout > 0u) {
+        marc = cc1120_get_marcstate();
+        if (marc == MARCSTATE_IDLE) {
+            break;
+        }
+        Delay_ms(1);
+        timeout--;
+    }
+
+    /* 6) Read cal results from HIGH VCDAC pass. */
+    high_fs_vco2 = cc1120_ext_reg_read(CC1120_FS_VCO2);
+    high_fs_vco4 = cc1120_ext_reg_read(CC1120_FS_VCO4);
+    high_fs_chp  = cc1120_ext_reg_read(CC1120_FS_CHP);
+
+    /* 7) Set VCO cap-array to 0 again. */
+    cc1120_ext_reg_write(CC1120_FS_VCO2, 0x00u);
+
+    /* 8) Continue with MID VCDAC (original). */
+    cc1120_ext_reg_write(CC1120_FS_CAL2, original_fs_cal2);
+
+    /* 9) Calibrate again. */
+    cc1120_strobe(CC1120_SCAL);
+
+    /* 10) Wait for IDLE again. */
+    timeout = 5000u;
+    while (timeout > 0u) {
+        marc = cc1120_get_marcstate();
+        if (marc == MARCSTATE_IDLE) {
+            break;
+        }
+        Delay_ms(1);
+        timeout--;
+    }
+
+    /* 11) Read cal results from MID VCDAC pass. */
+    mid_fs_vco2 = cc1120_ext_reg_read(CC1120_FS_VCO2);
+    mid_fs_vco4 = cc1120_ext_reg_read(CC1120_FS_VCO4);
+    mid_fs_chp  = cc1120_ext_reg_read(CC1120_FS_CHP);
+
+    /* 12) Keep the result with the HIGHER FS_VCO2 (the bug always picks
+     *     too low, so the higher candidate is the safer/correct one). */
+    if (high_fs_vco2 > mid_fs_vco2) {
+        cc1120_ext_reg_write(CC1120_FS_VCO2, high_fs_vco2);
+        cc1120_ext_reg_write(CC1120_FS_VCO4, high_fs_vco4);
+        cc1120_ext_reg_write(CC1120_FS_CHP,  high_fs_chp);
+    } else {
+        cc1120_ext_reg_write(CC1120_FS_VCO2, mid_fs_vco2);
+        cc1120_ext_reg_write(CC1120_FS_VCO4, mid_fs_vco4);
+        cc1120_ext_reg_write(CC1120_FS_CHP,  mid_fs_chp);
+    }
 }
 
 bool cc1120_init_no_scal(void)

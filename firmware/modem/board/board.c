@@ -21,8 +21,10 @@
  *   RC3  : SCK1   (PPS)              -> CC1120 SCLK
  *   RC4  : SDI1   (PPS in)           <- CC1120 SO  (MISO)
  *   RC5  : SDO1   (PPS out)          -> CC1120 SI  (MOSI)
- *   RC6  : RX1    (PPS in)           <- FT231 TXD
- *   RC7  : TX1    (PPS out)          -> FT231 RXD
+ *   RC6  : ROBOT build  -> RX1 (PPS in)  <- miniuart3 TXD
+ *          REMOTE build -> TX1 (PPS out) -> FT231 RXD (input on FT231)
+ *   RC7  : ROBOT build  -> TX1 (PPS out) -> miniuart3 RXD
+ *          REMOTE build -> RX1 (PPS in)  <- FT231 TXD (output from FT231)
  *
  * Note: CC1120 RESET_N is NOT wired to the PIC on this board. The chip is
  *       reset purely via the SRES SPI strobe (cc1120_reset() in radio/cc1120.c).
@@ -107,11 +109,24 @@
 #define PIN_SDO_TRIS        TRISCbits.TRISC5
 #define PIN_SDO_ANSEL       ANSELCbits.ANSELC5
 
-/* EUSART: RC7 = TX, RC6 = RX */
+/* EUSART pin assignment depends on the PCB wiring.
+ *
+ *   ROBOT board : MCU TX on RC7, MCU RX on RC6 (UART connector wired
+ *                 directly to a miniuart3 / FTDI cable).
+ *   REMOTE board: MCU TX on RC6, MCU RX on RC7 (FT231XQ-R on the PCB —
+ *                 the FT231 RXD input lands on RC6 and TXD output on RC7,
+ *                 i.e. the opposite of the robot board). */
+#if MODEM_ROLE == MODEM_ROLE_ROBOT
 #define PIN_TX_TRIS         TRISCbits.TRISC7
 #define PIN_TX_ANSEL        ANSELCbits.ANSELC7
 #define PIN_RX_TRIS         TRISCbits.TRISC6
 #define PIN_RX_ANSEL        ANSELCbits.ANSELC6
+#else /* MODEM_ROLE_REMOTE */
+#define PIN_TX_TRIS         TRISCbits.TRISC6
+#define PIN_TX_ANSEL        ANSELCbits.ANSELC6
+#define PIN_RX_TRIS         TRISCbits.TRISC7
+#define PIN_RX_ANSEL        ANSELCbits.ANSELC7
+#endif
 
 /* LED on RC2 */
 #define PIN_LED_LAT         LATCbits.LATC2
@@ -132,6 +147,7 @@
 #define PPS_RB1             0x09u
 #define PPS_RC4             0x14u
 #define PPS_RC6             0x16u
+#define PPS_RC7             0x17u
 
 /* PPS output source codes — PIC18F26Q10-specific (datasheet DS40001996A
  * Table 17-2). Verify against the EXACT device datasheet — these codes
@@ -225,13 +241,18 @@ void board_uart_hw_init(uint32_t baud)
     PIN_TX_TRIS  = 0;       /* TX as output */
     PIN_RX_TRIS  = 1;       /* RX as input */
 
-    /* PPS: RC7 = TX1 output, RX1 input from RC6.
+    /* PPS routing — depends on the PCB (see PIN_TX_* macros above).
      * NOTE: depending on MPLAB X / XC8 device-file revision the EUSART RX
      * input register may be named RXPPS, RX1PPS or RX1DTPPS — they all
      * point to the same hardware mux. Adjust if you get a "not declared"
      * error. */
+#if MODEM_ROLE == MODEM_ROLE_ROBOT
     RC7PPS  = PPS_OUT_TX1;
     RX1PPS  = PPS_RC6;
+#else /* MODEM_ROLE_REMOTE */
+    RC6PPS  = PPS_OUT_TX1;
+    RX1PPS  = PPS_RC7;
+#endif
 
     /* 16-bit baud rate generator, high speed:
      *   SPBRG = (Fosc / (4 * baud)) - 1 */

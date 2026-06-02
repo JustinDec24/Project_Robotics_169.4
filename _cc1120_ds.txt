@@ -1,0 +1,2090 @@
+                   Product  Sample &  Technical     Tools &   Support &
+                   Folder   Buy       Documents     Software  Community
+
+                                                                                                                          CC1120
+
+                                                                                                                            SWRS112H ­ JUNE 2011 ­ REVISED JULY 2015
+
+CC1120 High-Performance RF Transceiver for Narrowband Systems
+
+1 Device Overview
+
+1.1 Features                                        · Automatic Output Power Ramping
+                                                    · Configurable Data Rates: 0 to 200 kbps
+1                                                   · Supported Modulation Formats: 2-FSK,
+
+· High-Performance, Single-Chip Transceiver            2-GFSK, 4-FSK, 4-GFSK, MSK, OOK
+   ­ Adjacent Channel Selectivity:                  · WaveMatch: Advanced Digital Signal Processing
+       64 dB at 12.5-kHz Offset
+   ­ Blocking Performance: 91 dB at 10 MHz             for Improved Sync Detect Performance
+   ­ Excellent Receiver Sensitivity:                · RoHS-Compliant 5-mm × 5-mm No-Lead QFN
+       · ­123 dBm at 1.2 kbps
+       · ­110 dBm at 50 kbps                           32-Pin Package (RHB)
+       · ­127 dBm Using Built-in Coding Gain        · Regulations ­ Suitable for Systems Targeting
+   ­ Very Low Phase Noise:
+       ­111 dBc/Hz at 10-kHz Offset                    Compliance With
+                                                       ­ Europe: ETSI EN 300 220, ETSI EN 54-25
+· Suitable for Systems Targeting ETSI Category 1       ­ US: FCC CFR47 Part 15, FCC CFR47 Part 90,
+   Compliance in 169-MHz and 433-MHz Bands
+                                                           24, and 101
+· High Spectral Efficiency (9.6 kbps in 12.5-kHz       ­ Japan: ARIB RCR STD-T30, ARIB STD-T67,
+   Channel in Compliance With FCC Narrowbanding
+   Mandate)                                                ARIB STD-T108
+                                                    · Peripherals and Support Functions
+· Separate 128-Byte RX and TX FIFOs
+· Support for Seamless Integration With the CC1190     ­ Enhanced Wake-On-Radio (eWOR)
+                                                           Functionality for Automatic Low-Power Receive
+   Device for Increased Range Giving up to 3-dB            Polling
+   Improvement in Sensitivity and up to +27-dBm
+   Output Power                                        ­ Includes Functions for Antenna Diversity
+· Power Supply                                             Support
+   ­ Wide Supply Voltage Range (2.0 V to 3.6 V)
+   ­ Low Current Consumption:                          ­ Support for Retransmissions
+                                                       ­ Support for Automatic Acknowledge of Received
+       · RX: 2 mA in RX Sniff Mode
+       · RX: 17 mA Peak Current in Low-Power               Packets
+                                                       ­ TCXO Support and Control, Also in Power
+           Mode
+       · RX: 22 mA Peak Current in                         Modes
+                                                       ­ Automatic Clear Channel Assessment (CCA) for
+           High-Performance Mode
+       · TX: 45 mA at +14 dBm                              Listen-Before-Talk (LBT) Systems
+   ­ Power Down: 0.12 A                                ­ Built-in Coding Gain Support for Increased
+       (0.5 A With eWOR Timer Running)
+· Programmable Output Power up to +16 dBm With             Range and Robustness
+   0.4-dB Step Size                                    ­ Digital RSSI Measurement
+                                                       ­ Temperature Sensor
+1.2 Applications
+                                                    · IEEE 802.15.4g Systems
+· Narrowband Ultra-Low-Power Wireless Systems       · Home and Building Automation
+    With Channel Spacing Down to                    · Wireless Alarm and Security Systems
+    12.5 kHz                                        · Industrial Monitoring and Control
+                                                    · Wireless Healthcare Applications
+· 169-, 315-, 433-, 868-, 915-, 920-, 950-MHz       · Wireless Sensor Networks and Active RFID
+    ISM/SRD Band                                    · Private Mobile Radios
+
+· Wireless Metering and Wireless Smart Grid
+    (AMR and AMI)
+
+1
+
+           An IMPORTANT NOTICE at the end of this data sheet addresses availability, warranty, changes, use in safety-critical applications,
+           intellectual property matters and other important disclaimers. PRODUCTION DATA.
+CC1120                                                                                                                                                                            www.ti.com
+
+SWRS112H ­ JUNE 2011 ­ REVISED JULY 2015
+
+1.3 Description
+
+         The CC1120 device is a fully integrated single-chip radio transceiver designed for high performance at
+         very low-power and low-voltage operation in cost-effective wireless systems. All filters are integrated, thus
+         removing the need for costly external SAW and IF filters. The device is mainly intended for Industrial,
+         Scientific, and Medical (ISM) applications and Short Range Device (SRD) frequency bands at
+         164 to 192 MHz, 274 to 320 MHz, 410 to 480 MHz, and 820 to 960 MHz.
+
+         The CC1120 device provides extensive hardware support for packet handling, data buffering, burst
+         transmissions, clear channel assessment, link quality indication, and wake-on-radio. The main operating
+         parameters of the CC1120 device can be controlled through an SPI interface. In a typical system, the
+         CC1120 device is used with a microcontroller and only a few external passive components.
+
+                                 PART NUMBER                           Device Information(1)                                                      BODY SIZE (NOM)
+                      CC1120                                                                                                                      5.00 mm × 5.00 mm
+                                                                                  PACKAGE
+                                                                                  VQFN (32)
+
+                      (1) For more information, see Section 8, Mechanical Packaging and Orderable Information
+
+1.4 Functional Block Diagram
+
+   Figure 1-1 shows the system block diagram of the CC1120 device.
+
+                      CC112X
+
+   (optional 32kHz       Ultra low power 32kHz       Power on reset           4k byte                MARC                                  SPI                                    CSn (chip select)
+       clock intput)  auto-calibrated RC oscillator                            ROM        Main Radio Control Unit                Serial configuration                             SI (serial input)
+                                                                                                                                 and data interface                               SO (serial output)
+                                                                                           Ultra low power 16 bit                                                                 SCLK (serial clock)
+                                                                                                      MCU                                                                         (optional GPIO0-3)
+
+                                                                              System bus                                                               Interrupt and
+                                                                                                                                                        IO handler
+
+                                  eWOR               Battery sensor /  Configuration and   256 byte                               Packet handler
+                      Enhanced ultra low power         temp sensor      status registers  FIFO RAM                               and FIFO control
+
+                        Wake On Radio timer                                                  buffer
+
+                      RF and DSP frontend
+
+   PA                         14dBm high             Output power ramping and OOK / ASK modulation                    Modulator  Data interface with                              (optional autodetected
+                              efficiency PA                                                                                      signal chain access                              external XOSC / TCXO)
+                                                                I                                                                                      XOSC                       XOSC_Q1
+                                                                                  Fully integrated Fractional-N
+                                                                                     Frequency Synthesizer                                                                        XOSC_Q2
+
+                                                               Q                                                                                                                  (optional bit clock)
+
+              LNA_P                                                    ifamp              90dB dynamic                                                                            (optional low jitter serial
+                                                                                            range ADC                                                                             data output for legacy
+              LNA_N                                                                                                                                                               protocols)
+                              High linearity                                                                          Channel                          Highly flexible FSK / OOK
+(optional GPIO for                 LNA                                                                                   filter                                demodulator
+antenna diversity)
+                                                                                                                                          Cordic
+
+                                                                       ifamp              90dB dynamic
+                                                                                            range ADC
+
+                                                                                                    AGC
+                                                                           Automatic Gain Control, 60dB VGA range
+                                                                       RSSI measurements and carrier sense detection
+
+                                                     Figure 1-1. Functional Block Diagram
+
+2  Device Overview                                                                                                               Copyright © 2011­2015, Texas Instruments Incorporated
+
+                                                                       Submit Documentation Feedback
+                                                                         Product Folder Links: CC1120
+www.ti.com                                                                                                                CC1120
+
+                                                                                       SWRS112H ­ JUNE 2011 ­ REVISED JULY 2015
+
+                                                       Table of Contents
+
+1 Device Overview ......................................... 1               4.14 Thermal Resistance Characteristics for RHB
+    1.1 Features .............................................. 1
+    1.2 Applications........................................... 1               Package ............................................. 15
+    1.3 Description............................................ 2         4.15 Timing Requirements ............................... 16
+    1.4 Functional Block Diagram ............................ 2           4.16 Regulatory Standards ............................... 16
+                                                                          4.17 Typical Characteristics .............................. 17
+2 Revision History ......................................... 4        5 Detailed Description ................................... 20
+3 Terminal Configuration and Functions.............. 5                    5.1 Block Diagram....................................... 20
+                                                                          5.2 Frequency Synthesizer.............................. 20
+    3.1 Pin Diagram .......................................... 5          5.3 Receiver ............................................. 21
+    3.2 Pin Configuration ..................................... 6         5.4 Transmitter .......................................... 21
+4 Specifications ............................................ 7           5.5 Radio Control and User Interface ................... 21
+    Absolute Maximum Ratings ................................. 7          5.6 Enhanced Wake-On-Radio (eWOR) ................ 21
+    4.1 ESD Ratings.......................................... 7           5.7 Sniff Mode........................................... 22
+                                                                          5.8 Antenna Diversity ................................... 22
+      4.2 Recommended Operating Conditions (General                       5.9 WaveMatch.......................................... 23
+                                                                      6 Application, Implementation, and Layout ......... 24
+          Characteristics) ....................................... 7      6.1 Application Information .............................. 24
+    4.3 RF Characteristics.................................... 7      7 Device and Documentation Support ............... 26
+    4.4 Power Consumption Summary ....................... 8               7.1 Device Support ...................................... 26
+    4.5 Receive Parameters.................................. 9            7.2 Documentation Support ............................. 27
+    4.6 Transmit Parameters................................ 12            7.3 Trademarks.......................................... 27
+    4.7 PLL Parameters..................................... 13            7.4 Electrostatic Discharge Caution..................... 27
+    4.8 32-MHz Clock Input (TCXO) ....................... 14              7.5 Glossary ............................................. 27
+    4.9 32-MHz Crystal Oscillator ........................... 14
+    4.10 32-kHz Clock Input.................................. 14      8 Mechanical Packaging and Orderable
+    4.11 32-kHz RC Oscillator ............................... 15
+    4.12 I/O and Reset ....................................... 15         Information .............................................. 28
+    4.13 Temperature Sensor ................................ 15
+
+Copyright © 2011­2015, Texas Instruments Incorporated                                  Table of Contents  3
+
+                                                       Submit Documentation Feedback
+                                                         Product Folder Links: CC1120
+CC1120                                                                                                             www.ti.com
+
+SWRS112H ­ JUNE 2011 ­ REVISED JULY 2015
+
+2 Revision History
+
+                   NOTE: Page numbers for previous revisions may differ from page numbers in the current version.
+
+Changes from Revision G (September 2014) to Revision H                                                             Page
+
+   · Moved storage temperature range back to Absolute Maximum Ratings table ............................................... 7
+   · Updated the formatting of the Specifications section ........................................................................... 7
+   · Changed clock frequency minimum value FROM: 32 MHz TO: 31.25 MHz in 32-MHz Clock Input (TCXO) .......... 14
+   · Added clock frequency typical value of 32 MHz to 32-MHz Clock Input (TCXO) .......................................... 14
+   · Changed crystal frequency minimum value FROM: 32 MHz TO: 31.25 MHz in the 32-MHz Crystal Oscillator table . 14
+   · Added crystal frequency typical value of 32 MHz in the 32-MHz Crystal Oscillator table ................................. 14
+   · Changed table title FROM: Wakeup and Timing TO: Timing Requirements ............................................... 16
+
+Changes from Revision F (July 2014) to Revision G                                                                  Page
+
+   · Added "Ambient" to the temperature range condition and removed Tj from Temperature range ......................... 7
+   · Added data to TCXO table ......................................................................................................... 14
+
+4  Revision History                                                       Copyright © 2011­2015, Texas Instruments Incorporated
+
+                                          Submit Documentation Feedback
+                                            Product Folder Links: CC1120
+www.ti.com                                                                                                                                       CC1120
+
+3 Terminal Configuration and Functions                                                                        SWRS112H ­ JUNE 2011 ­ REVISED JULY 2015
+3.1 Pin Diagram
+
+         Figure 3-1 shows pin names and locations for the CC1120 device.
+
+                                                       32 EXT_XOSC
+                                                            31 XOSC_Q2
+                                                                 30 XOSC_Q1
+                                                                       29 DCPL_XOSC
+                                                                            28 AVDD_XOSC
+                                                                                  27 AVDD_SYNTH2
+                                                                                       26 DCPL_PFD_CHP
+                                                                                             25 AVDD_PFD_CHP
+
+VDD_GUARD 1                                            CC1120                                                 24 LPF1
+    RESET_N 2                                                                                                 23 LPF0
+        GPIO3 3                                                 GND                                           22 AVDD_SYNTH1
+        GPIO2 4                                          GROUND PAD                                           21 DCPL_VCO
+         DVDD 5                                                                                               20 LNA_N
+         DCPL 6                                                                                               19 LNA_P
+              SI 7                                                                                            18 TRX_SW
+         SCLK 8                                                                                               17 PA
+
+                                                                                             16 N.C.
+                                                                                        15 AVDD_RF
+                                                                                  14 RBIAS
+                                                                             13 AVDD_IF
+                                                                       12 DVDD
+                                                                 11 CSn
+                                                            10 GPIO0
+                                                       9 SO (GPIO1)
+
+Figure 3-1. Package 5-mm × 5-mm QFN
+
+Copyright © 2011­2015, Texas Instruments Incorporated                                                         Terminal Configuration and Functions  5
+
+                                                       Submit Documentation Feedback
+                                                         Product Folder Links: CC1120
+CC1120                                                                                                              www.ti.com
+
+SWRS112H ­ JUNE 2011 ­ REVISED JULY 2015
+
+3.2 Pin Configuration
+
+    The following table lists the pinout configuration for the CC1120 device.
+
+         PIN                              TYPE                                   DESCRIPTION
+
+    NO.         NAME
+
+1        VDD_GUARD                        Power          2.0­3.6 V VDD
+
+2        RESET_N                          Digital input  Asynchronous, active-low digital reset
+
+3        GPIO3                            Digital I/O    General-purpose I/O
+
+4        GPIO2                            Digital I/O    General-purpose I/O
+
+5        DVDD                             Power          2.0­3.6 VDD to internal digital regulator
+
+6        DCPL                             Power          Digital regulator output to external decoupling capacitor
+
+7        SI                               Digital input  Serial data in
+
+8        SCLK                             Digital input  Serial data clock
+
+9        SO(GPIO1)                        Digital I/O    Serial data out (general-purpose I/O)
+
+10       GPIO0                            Digital I/O    General-purpose I/O
+
+11       CSn                              Digital input  Active-low chip select
+
+12       DVDD                             Power          2.0­3.6 V VDD
+
+13       AVDD_IF                          Power          2.0­3.6 V VDD
+
+14       RBIAS                            Analog         External high-precision resistor
+
+15       AVDD_RF                          Power          2.0­3.6 V VDD
+
+16       N.C.                             --             Not connected
+
+17       PA                               Analog         Single-ended TX output (requires DC path to VDD)
+
+18       TRX_SW                           Analog         TX and RX switch. Connected internally to GND in TX and floating
+                                                         (high-impedance) in RX.
+
+19       LNA_P                            Analog         Differential RX input (requires DC path to ground)
+
+20       LNA_N                            Analog         Differential RX input (requires DC path to ground)
+
+21       DCPL_VCO                         Power          Pin for external decoupling of VCO supply regulator
+
+22       AVDD_SYNTH1                      Power          2.0­3.6 V VDD
+
+23       LPF0                             Analog         External loop filter components
+
+24       LPF1                             Analog         External loop filter components
+
+25       AVDD_PFD_CHP                     Power          2.0­3.6 V VDD
+
+26       DCPL_PFD_CHP                     Power          Pin for external decoupling of PFD and CHP regulator
+
+27       AVDD_SYNTH2                      Power          2.0­3.6 V VDD
+
+28       AVDD_XOSC                        Power          2.0­3.6 V VDD
+
+29       DCPL_XOSC                        Power          Pin for external decoupling of XOSC supply regulator
+
+30       XOSC_Q1                          Analog         Crystal oscillator pin 1 (must be grounded if a TCXO or other external
+                                                         clock connected to EXT_XOSC is used)
+
+31       XOSC_Q2                          Analog         Crystal oscillator pin 2 (must be left floating if a TCXO or other
+                                                         external clock connected to EXT_XOSC is used)
+
+32       EXT_XOSC                         Digital input  Pin for external clock input (must be grounded if a regular crystal
+                                                         connected to XOSC_Q1 and XOSC_Q2 is used)
+
+--       GND                              Ground pad     The ground pad must be connected to a solid ground plane.
+
+6   Terminal Configuration and Functions                                      Copyright © 2011­2015, Texas Instruments Incorporated
+
+                                          Submit Documentation Feedback
+                                            Product Folder Links: CC1120
+www.ti.com                                                                                                                            CC1120
+
+                                                                                                   SWRS112H ­ JUNE 2011 ­ REVISED JULY 2015
+
+4 Specifications
+
+      All measurements performed on CC1120EM_868_915 rev.1.0.1, CC1120EM_955 rev.1.2.1,
+      CC1120EM_420_470 rev.1.0.1, or CC1120EM_169 rev.1.2.
+
+Absolute Maximum Ratings
+
+over operating free-air temperature range (unless otherwise noted)(1)(2)
+
+                                                                                                   MIN                   MAX         UNIT
+
+Supply voltage (VDD, AVDD_x)                           All supply pins must have the same voltage  ­0.3                  3.9             V
+
+Input RF level                                                                                                           +10         dBm
+
+Voltage on any digital pin                             Max 3.9 V                                   ­0.3           VDD + 0.3              V
+
+Voltage on analog pins (including DCPL pins)                                                       ­0.3                  2.0             V
+
+Storage temperature, Tstg                                                                          ­40                   125             °C
+
+(1) Stresses beyond those listed under Absolute Maximum Ratings may cause permanent damage to the device. These are stress ratings
+      only, and functional operation of the device at these or any other conditions beyond those indicated under general characteristics is not
+      implied. Exposure to absolute-maximum-rated conditions for extended periods may affect device reliability. Stresses beyond those listed
+      under absolute maximum ratings may cause permanent damage to the device. These are stress ratings only, and functional operation of
+      the device at these or any other conditions beyond those indicated under recommended operating conditions is not implied. Exposure to
+      absolute-maximum-rated conditions for extended periods may affect device reliability.
+
+(2) All voltage values are with respect to VSS unless otherwise noted.
+
+4.1 ESD Ratings
+
+            Electrostatic     Human body model (HBM), per ANSI/ESDA/JEDEC JS001(1)                                       VALUE           UNIT
+            discharge (ESD)                                                                                                 ±2            kV
+VESD        performance       Charged device model (CDM), per JESD22-C101(2)                       All pins                                V
+                                                                                                                          ±500
+
+(1) JEDEC document JEP155 states that 500-V HBM allows safe manufacturing with a standard ESD control process.
+(2) JEDEC document JEP157 states that 250-V HBM allows safe manufacturing with a standard ESD control process.
+
+4.2 Recommended Operating Conditions (General Characteristics)
+
+over operating free-air temperature range (unless otherwise noted)
+
+                                                                                                   MIN            NOM         MAX        UNIT
+                                                                                                                                3.6        V
+Voltage supply range         All supply pins must have the same voltage                                      2.0                           V
+                                                                                                                              VDD         °C
+Voltage on digital inputs                                                                                    0                   85
+
+Ambient temperature range                                                                                    ­40
+
+4.3 RF Characteristics
+
+over operating free-air temperature range (unless otherwise noted)
+
+      PARAMETER                                        TEST CONDITIONS                                 MIN        TYP         MAX        UNIT
+                                                                                                       820                      960      MHz
+Frequency bands               See SWRA398, Using the CC112x/CC1175 at 274 to                           410          30          480
+                              320 MHz, for more information                                        (273.3)          15
+Frequency resolution                                                                                   164                    (320)
+Data rate                     Contact TI for more information about the use of these                 (205)            6
+Data rate step size           frequency bands                                                      (136.7)        1e-4          192
+                              In 820­950 MHz band                                                                             (240)
+                              In 410­480 MHz band                                                         0                   (160)
+                              In 164­192 MHz band                                                         0
+                              Packet mode                                                                                                Hz
+                              Transparent mode
+                                                                                                                              200
+                                                                                                                                        kbps
+
+                                                                                                                              100
+                                                                                                                                         bps
+
+Copyright © 2011­2015, Texas Instruments Incorporated                                                                    Specifications        7
+
+                                                       Submit Documentation Feedback
+                                                         Product Folder Links: CC1120
+CC1120                                                                                                            www.ti.com
+
+SWRS112H ­ JUNE 2011 ­ REVISED JULY 2015
+
+4.4 Power Consumption Summary
+
+TA = 25°C, VDD = 3.0 V if nothing else stated         TEST CONDITIONS                               MIN  TYP MAX UNIT
+                           PARAMETER
+
+CURRENT CONSUMPTION: STATIC MODES
+
+Power down with retention                                                                                0.12  1  µA
+
+                                                      Low-power RC oscillator running                    0.5
+
+XOFF mode                                             Crystal oscillator / TCXO disabled                 170      µA
+
+IDLE mode                                             Clock running, system waiting with no radio        1.3      mA
+                                                      activity
+
+CURRENT CONSUMPTION, TRANSMIT MODES
+
+TX current consumption +10 dBm                        950-MHz band (high-performance mode)               37       mA
+TX current consumption 0 dBm
+                                                                                                         26       mA
+
+TX current consumption +14 dBm                        868-, 915-, and 920-MHz bands (high-               45       mA
+TX current consumption +10 dBm                        performance mode)
+                                                                                                         34       mA
+
+TX current consumption +15 dBm                                                                           50       mA
+
+TX current consumption +14 dBm                        434-MHz band (high-performance mode)               45       mA
+
+TX current consumption +10 dBm                                                                           34       mA
+
+TX current consumption +15 dBm                                                                           54       mA
+
+TX current consumption +14 dBm                        169-MHz band (high-performance mode)               49       mA
+
+TX current consumption +10 dBm                                                                           41       mA
+LOW-POWER MODE(1)
+
+TX current consumption +10 dBm                                                                           32       mA
+CURRENT CONSUMPTION, RECEIVE MODE (HIGH-PERFORMANCE MODE) (1)
+
+                          1.2 kbps, 4-byte preamble   Using RX sniff mode, where the receiver                2
+RX wait for sync                                      wakes up at regular intervals to look for an                               mA
+                                                      incoming packet(2)
+                          38.4 kbps, 4-byte preamble                                                     13.4
+
+RX peak current  433-, 868-, 915-, 920-, and          Peak current consumption during packet               22
+                 950­MHz bands                        reception at the sensitivity threshold                                     mA
+
+                 169-MHz band                                                                              23
+
+Average current consumption                           50 kbps, 5-byte preamble, 40-kHz RC                15       µA
+Check for data packet every 1 second using Wake       oscillator used as sleep timer
+on Radio
+
+CURRENT CONSUMPTION, RECEIVE MODE (LOW-POWER MODE) (1)
+
+RX peak current  1.2 kbps                             Peak current consumption during packet             17       mA
+Low-power RX                                          reception at the sensitivity level
+mode
+
+(1) TA = 25°C, VDD = 3.0 V, fc = 869.5 MHz if nothing else stated.
+(2) See the sniff mode design note for more information (SWRA428).
+
+8  Specifications                                                                         Copyright © 2011­2015, Texas Instruments Incorporated
+
+                                                      Submit Documentation Feedback
+                                                        Product Folder Links: CC1120
+www.ti.com                                                                                                                                                 CC1120
+
+                                                                                                                        SWRS112H ­ JUNE 2011 ­ REVISED JULY 2015
+
+4.5 Receive Parameters
+
+All RX measurements made at the antenna connector, to a bit error rate (BER) limit of 1%.
+
+                   PARAMETER                                          TEST CONDITIONS                                   MIN  TYP           MAX UNIT
+                                                                                                                                                       dBm
+GENERAL RECEIVE PARAMETERS (HIGH-PERFORMANCE MODE)(1)
+                                                                                                                                            200 kHz
+Saturation                                                                                                                            +10              dBm
+                                                                                                                        8                              dBm
+Digital channel filter programmable bandwidth                                                                                                          dBm
+                                                                                                                                      ­14                
+IIP3, normal mode                                           At maximum gain                                                            ­8
+                                                                                                                                                       dBm
+IIP3, high linearity mode                                   Using 6-dB gain reduction in front end                                 ±12%
+                                                                                                                                                        dB
+Data rate offset tolerance                                  With carrier sense detection enabled and assuming                     ±0.2%
+                                                            4-byte preamble                                                           ­56
+
+                                                            With carrier sense detection disabled                                  < ­57
+                                                                                                                              60 + j60 /
+Spurious         1­13 GHz (VCO leakage at 3.5 GHz)          Radiated emissions measured according to
+emissions        30 MHz to 1 GHz                            ETSI EN 300 220, fc = 869.5 MHz                                     30 + j30
+                                                                                                                            100 + j60 /
+Optimum          868-, 915-, and 920-MHz bands              (Differential or single-ended RX configurations)
+source           433-MHz band                                                                                                   50 + j30
+impedance        169-MHz band                                                                                               140 + j40 /
+
+                                                                                                                                70 + j20
+
+RX PERFORMANCE IN 950-MHZ BAND (HIGH-PERFORMANCE MODE)(2)                                                                    ­120
+                                                                                1.2 kbps, DEV = 4 kHz CHF = 10 kHz(4)        ­114
+                                                                                1.2 kbps, DEV = 20 kHz CHF = 50 kHz(4)
+                                                                                                                             ­107
+Sensitivity (3)                                             50 kbps 2GFSK, DEV = 25 kHz,
+                                                            CHF = 100 kHz(4)                                                 ­100
+
+                                                            200 kbps, DEV = 83 kHz (outer symbols),                             51
+                                                            CHF = 200 kHz(4), 4GFSK(5)                                          52
+                                                                                                                                73
+                                                            ± 12.5 kHz (adjacent channel)                                       76
+                                                                                                                                81
+                 1.2 kbps 2FSK, 12.5-kHz channel            ± 25 kHz (alternate channel)                                        47
+                 separation, 4-kHz deviation,               ± 1 MHz                                                             48
+                 10-kHz channel filter                      ± 2 MHz                                                             69
+                                                                                                                                71
+                                                            ± 10 MHz                                                            78
+                                                                                                                                43
+                                                            ± 50 kHz (adjacent channel)                                         51
+                                                                                                                                62
+Blocking         1.2 kbps 2FSK, 50-kHz channel              + 100 kHz (alternate channel)                                       65
+and              separation, 20-kHz deviation,              ± 1 MHz                                                             71
+Selectivity      50-kHz channel filter                      ± 2 MHz                                                             37
+                                                            ± 10 MHz                                                            44
+                 50 kbps 2GFSK, 200-kHz channel             ± 200 kHz (adjacent channel)                                        55
+                 separation, 25-kHz deviation,              ± 400 kHz (alternate channel)                                       58
+                 100-kHz channel filter (Same modulation    ± 1 MHz                                                             64
+                 format as 802.15.4g Mandatory Mode)        ± 2 MHz
+
+                                                            ± 10 MHz
+
+                                                            ± 200 kHz (adjacent channel)
+
+                 200 kbps 4GFSK, 83-kHz deviation (outer    ± 400 kHz (alternate channel)
+                 symbols), 200-kHz channel filter, zero IF  ± 1 MHz
+                                                            ± 2 MHz
+
+                                                            ± 10 MHz
+
+(1) TA = 25°C, VDD = 3.0 V, fc = 869.5 MHz if nothing else stated.
+(2) TA = 25°C, VDD = 3.0 V if nothing else stated.
+(3) Sensitivity can be improved if the TX and RX matching networks are separated.
+
+(4) DEV is short for deviation, CHF is short for Channel Filter Bandwidth
+
+(5) BT = 0.5 is used in all GFSK measurements
+
+Copyright © 2011­2015, Texas Instruments Incorporated                                                                        Specifications                 9
+
+                                                            Submit Documentation Feedback
+                                                              Product Folder Links: CC1120
+CC1120                                                                                                               www.ti.com
+
+SWRS112H ­ JUNE 2011 ­ REVISED JULY 2015
+
+Receive Parameters (continued)
+
+All RX measurements made at the antenna connector, to a bit error rate (BER) limit of 1%.
+
+             PARAMETER                                            TEST CONDITIONS                        MIN  TYP    MAX UNIT
+
+RX PERFORMANCE IN 868-, 915-, AND 920-MHZ BANDS (HIGH-PERFORMANCE MODE) (2)
+
+Sensitivity                                             300 bps with coding gain (using a PN spreading        ­127   dBm
+                                                        sequence with 4 chips per data bit) DEV = 4 kHz               dB
+                                                        CHF = 10 kHz(4)                                       ­123    dB
+                                                        1.2 kbps, DEV = 4 kHz CHF = 10 kHz(4)                 ­120
+                                                        1.2 kbps, DEV = 10 kHz CHF = 42 kHz(4)                ­117
+                                                        1.2 kbps, DEV = 20 kHz CHF = 50 kHz(4)                ­114
+                                                                                                              ­110
+                                                        4.8 kbps OOK
+                                                        38.4 kbps, DEV = 20 kHz CHF = 100 kHz(4)              ­110
+
+                                                        50 kbps 2GFSK, DEV = 25 kHz,                          ­103
+                                                        CHF = 100 kHz(4)
+                                                                                                                 54
+                                                        200 kbps, DEV = 83 kHz (outer symbols),                  54
+                                                        CHF = 200 kHz(4), 4GFSK                                  75
+                                                                                                                 79
+                                                        ± 12.5 kHz (adjacent channel)                            87
+                                                                                                                 78
+             1.2-kbps 2-FSK, 12.5-kHz channel           ± 25 kHz (alternate channel)                             82
+             separation, 4-kHz deviation,               ± 1 MHz                                                  88
+             10-kHz channel filter                      ± 2 MHz                                                  88
+                                                                                                                 48
+                                                        ± 10 MHz                                                 48
+                                                                                                                 69
+             1.2-kbps 2-FSK, 12.5-kHz channel           ± 1 kHz                                                  74
+             separation, using settings optimized for   ± 2 kHz                                                  81
+             blocking performance                       ± 8 MHz                                                  42
+             (3-kHz deviation, 7.8-kHz channel filter,  ± 10 MHz                                                 43
+             minimum loop bandwidth)                                                                             62
+                                                                                                                 66
+                                                        ± 50 kHz (adjacent channel)                              74
+                                                                                                                 43
+             1.2-kbps 2-FSK, 50-kHz channel             + 100 kHz (alternate channel)                            50
+             separation, 20-kHz deviation,              ± 1 MHz                                                  61
+             50-kHz channel filter                      ± 2 MHz                                                  65
+                                                                                                                 74
+Blocking                                                ± 10 MHz                                                 36
+and                                                     + 100 kHz (adjacent channel)                             44
+Selectivity                                             ± 200 kHz (alternate channel)                            55
+                                                        ± 1 MHz                                                  59
+             38.4-kbps 2-GFSK, 100-kHz channel          ± 2 MHz                                                  67
+             separation, 20-kHz deviation, 100-kHz
+             channel filter                                                                                      54
+
+                                                        ± 10 MHz
+
+             50-kbps 2-GFSK, 200-kHz channel            ± 200 kHz (adjacent channel)
+             separation, 25-kHz deviation, 100-kHz      ± 400 kHz (alternate channel)
+             channel filter                             ± 1 MHz
+             (Same modulation format as 802.15.4g       ± 2 MHz
+             Mandatory Mode)                            ± 10 MHz
+
+                                                        ± 200 kHz (adjacent channel)
+
+             200-kbps 4-GFSK, 83-kHz deviation (outer   ± 400 kHz (alternate channel)
+             symbols), 200-kHz channel filter, zero IF  ± 1 MHz
+                                                        ± 2 MHz
+
+Image rejection (image compensation enabled)            ± 10 MHz
+
+                                                        1.2 kbps, DEV = 4 kHz CHF = 10 kHz(4), image at
+                                                        ­125 kHz
+
+10  Specifications                                                                               Copyright © 2011­2015, Texas Instruments Incorporated
+
+                                                        Submit Documentation Feedback
+                                                          Product Folder Links: CC1120
+www.ti.com                                                                                                                                 CC1120
+
+                                                                                                        SWRS112H ­ JUNE 2011 ­ REVISED JULY 2015
+
+Receive Parameters (continued)
+
+All RX measurements made at the antenna connector, to a bit error rate (BER) limit of 1%.
+
+             PARAMETER                                           TEST CONDITIONS                        MIN  TYP    MAX UNIT
+
+RX PERFORMANCE IN 434-MHZ BAND (HIGH-PERFORMANCE MODE)(2)
+
+                                                       1.2 kbps, DEV = 4 kHz CHF = 10 kHz(4)                 ­123
+
+Sensitivity                                            50 kbps 2GFSK, DEV = 25 kHz,                          ­109            dBm
+                                                       CHF = 100 kHz                                                          dB
+                                                                                                             ­116
+                                                       1.2 kbps, DEV = 20 kHz CHF = 50 kHz(4)                   60
+                                                                                                                60
+                                                       ± 12.5 kHz (adjacent channel)                            79
+                                                                                                                82
+             1.2 kbps 2FSK, 12.5-kHz channel           ± 25 kHz (alternate channel)                             91
+             separation, 4-kHz deviation,              ± 1 MHz                                                  54
+             10-kHz channel filter                     ± 2 MHz                                                  54
+                                                                                                                74
+                                                       ± 10 MHz                                                 78
+                                                                                                                86
+                                                       ± 50 kHz (adjacent channel)                              47
+                                                                                                                50
+Blocking     1.2 kbps 2FSK, 50-kHz channel             + 100 kHz (alternate channel)                            67
+and          separation, 20-kHz deviation,             ± 1 MHz                                                  71
+Selectivity  50-kHz channel filter                     ± 2 MHz                                                  78
+
+                                                       ± 10 MHz
+
+                                                       + 100 kHz (adjacent channel)
+
+             38.4 kbps 2GFSK, 100-kHz channel          ± 200 kHz (alternate channel)
+             separation, 20-kHz deviation,             ± 1 MHz
+             100-kHz channel filter                    ± 2 MHz
+
+                                                       ± 10 MHz
+
+RX PERFORMANCE IN 169-MHZ BAND (HIGH-PERFORMANCE MODE)(2)
+
+Sensitivity                                            1.2 kbps, DEV = 4 kHz CHF = 10 kHz(4)                 ­123
+                                                       1.2 kbps, DEV = 20 kHz CHF = 50 kHz(4)                                            dbm
+
+                                                       ± 12.5 kHz (adjacent channel)                         ­117
+                                                                                                                64
+Blocking     1.2 kbps 2FSK, 12.5-kHz channel           ± 25 kHz (alternate channel)                             66
+and          separation, 4-kHz deviation,              ± 1 MHz                                                  82
+Selectivity  10-kHz channel filter                     ± 2 MHz                                                  83
+                                                       ± 10 MHz                                                 89
+             1.2 kbps 2FSK, 50-kHz channel             ± 50 kHz (adjacent channel)                                                        dB
+             separation, 20-kHz deviation,             + 100 kHz (alternate channel)                            60
+             50-kHz channel filter                     ± 1 MHz                                                  60
+                                                       ± 2 MHz                                                  76
+                                                                                                                77
+                                                       ± 10 MHz                                                 83
+
+Spurious     1.2 kbps 2FSK, 12.5-kHz channel                                                                 70              dB
+response     separation, 4-kHz deviation,
+rejection    10-kHz channel filter
+
+Image rejection (image compensation enabled)           1.2 kbps, DEV = 4 kHz CHF = 10 kHz(4), image at       66              dB
+                                                       ­125 kHz
+
+Copyright © 2011­2015, Texas Instruments Incorporated                                                        Specifications                   11
+
+                                                       Submit Documentation Feedback
+                                                         Product Folder Links: CC1120
+CC1120                                                                                                    www.ti.com
+
+SWRS112H ­ JUNE 2011 ­ REVISED JULY 2015
+
+Receive Parameters (continued)
+
+All RX measurements made at the antenna connector, to a bit error rate (BER) limit of 1%.
+
+             PARAMETER                                        TEST CONDITIONS                 MIN  TYP    MAX UNIT
+
+RX PERFORMANCE IN LOW-POWER MODE(1)
+
+                                                    1.2 kbps, DEV = 4 kHz CHF = 10 kHz(4)          ­111
+                                                                                                    ­99
+Sensitivity                                         38.4 kbps, DEV = 50 kHz CHF = 100 kHz(4)              dBm
+                                                                                                    ­99    dB
+                                                    50 kbps 2GFSK, DEV = 25 kHz,                          dBm
+                                                    CHF = 100 kHz(4)                                  46
+                                                                                                      46
+                                                    ± 12.5 kHz (adjacent channel)                     73
+                                                                                                      78
+             1.2 kbps 2FSK, 12.5-kHz channel        ± 25 kHz (alternate channel)                      79
+             separation, 4-kHz deviation,           ± 1 MHz                                           43
+             10-kHz channel filter                  ± 2 MHz                                           45
+                                                                                                      71
+                                                    ± 10 MHz                                          74
+                                                                                                      75
+                                                    ± 50 kHz (adjacent channel)                       37
+                                                                                                      43
+Blocking     1.2 kbps 2FSK, 50-kHz channel          + 100 kHz (alternate channel)                     58
+and          separation, 20-kHz deviation,          ± 1 MHz                                           62
+Selectivity  50-kHz channel filter                  ± 2 MHz                                           64
+                                                    ± 10 MHz                                          43
+             38.4 kbps 2GFSK, 100-kHz channel       + 100 kHz (adjacent channel)                      52
+             separation, 20-kHz deviation, 100-kHz  + 200 kHz (alternate channel)                     60
+             channel filter                         ± 1 MHz                                           64
+                                                    ± 2 MHz                                           65
+                                                                                                    +10
+                                                    + 10 MHz
+
+             50 kbps 2GFSK, 200-kHz channel         + 200 kHz (adjacent channel)
+             separation, 25-kHz deviation, 100-kHz  + 400 kHz (alternate channel)
+             channel filter                         ± 1 MHz
+             (Same modulation format as 802.15.4g   ± 2 MHz
+             Mandatory Mode)                        ± 10 MHz
+
+Saturation
+
+4.6 Transmit Parameters
+
+TA = 25°C, VDD = 3.0 V, fc = 869.5 MHz if nothing else stated
+
+             PARAMETER                              TEST CONDITIONS                           MIN  TYP MAX UNIT
+
+                           At 950 MHz                                                              +12
+
+                           At 915- and 920-MHz                                                     +14
+
+                           At 915- and 920-MHz with VDD = 3.6 V                                    +15
+
+                           At 868 MHz                                                              +15
+
+Maximum output power       At 868 MHz with VDD = 3.6 V                                             +16    dBm
+
+                           At 433 MHz                                                              +15
+
+                           At 433 MHz with VDD = 3.6 V                                             +16
+
+                           At 169 MHz                                                              +15
+
+                           At 169 MHz with VDD = 3.6 V                                             +16
+
+Minimum output power       Within fine step size range                                             ­11
+                           Within coarse step size range                                                                  dBm
+
+                                                                                                   ­40
+
+Output power step size     Within fine step size range                                             0.4    dB
+
+Adjacent channel power     4-GFSK 9.6 kbps in 12.5-kHz channel, measured in                        ­75
+                           100-Hz bandwidth at 434 MHz (FCC Part 90 Mask D
+                           compliant)                                                                                     dBc
+                                                                                                   ­58
+                           4-GFSK 9.6 kbps in 12.5-kHz channel, measured in
+                           8.75-kHz bandwidth (ETSI EN 300 220 compliant)
+
+                           2-GFSK 2.4 kbps in 12.5-kHz channel, 1.2-kHz deviation                  ­61
+
+Spurious emissions                                                                                 <­60   dBm
+(not including harmonics)
+
+12  Specifications                                                                            Copyright © 2011­2015, Texas Instruments Incorporated
+
+                                                    Submit Documentation Feedback
+                                                      Product Folder Links: CC1120
+www.ti.com                                                                                                                CC1120
+
+                                                                                       SWRS112H ­ JUNE 2011 ­ REVISED JULY 2015
+
+Transmit Parameters (continued)
+
+TA = 25°C, VDD = 3.0 V, fc = 869.5 MHz if nothing else stated
+
+            PARAMETER                                  TEST CONDITIONS                          MIN  TYP       MAX UNIT
+                                                                                                                          dBm
+            2nd Harm, 169 MHz                                                                        ­39
+                                                                                                                        dBµV/m
+            3rd Harm, 169 MHz                                                                        ­58                  dBm
+                                                                                                                            
+            2nd Harm, 433 MHz                                                                        ­56
+
+                 3rd Harm, 433 MHz   Transmission at +14 dBm (or maximum allowed in                  ­51
+                 2nd Harm, 450 MHz   applicable band where this is less than +14 dBm) using TI
+                 3rd Harm, 450 MHz   reference design Emissions measured according to ARIB           ­60
+Harmonics 2nd Harm, 868 MHz          T-96 in 950-MHz band, ETSI EN 300-220 in 170-, 433-,
+                 3rd Harm, 868 MHz   and 868-MHz bands and FCC part 15.247 in 450- and               ­45
+                 2nd Harm, 915 MHz   915-MHz band Fourth harmonic in 915-MHz band will
+                 3rd Harm, 915 MHz   require extra filtering to meet FCC requirements if             ­40
+                                     transmitting for long intervals
+                                     (>50-ms periods)                                                ­42
+
+                                                                                                     56
+
+                                                                                                     52
+
+            4th Harm, 915 MHz                                                                        60
+
+            2nd Harm, 950 MHz                                                                        ­58
+
+            3rd Harm, 950 MHz                                                                        ­42
+
+            868-, 915-, and 920-MHz                                                                  35 + j35
+
+Optimum bands
+
+load        433 MHz band                                                                             55 + j25
+impedance                                                                                             80 + j0
+
+            169 MHz band
+
+4.7 PLL Parameters
+
+TA = 25°C, VDD = 3.0 V if nothing else stated          TEST CONDITIONS                          MIN  TYP MAX UNIT
+                         PARAMETER
+
+HIGH-PERFORMANCE MODE
+
+                                                       ± 10 kHz offset                                ­99
+                                                                                                      ­99
+Phase noise in 950-MHz band                            ± 100 kHz offset                              ­123      dBc/Hz
+                                                                                                      ­99      dBc/Hz
+                                                       ± 1 MHz offset                                ­100      dBc/Hz
+                                                                                                     ­122      dBc/Hz
+                                                       ± 10 kHz offset                               ­106
+                                                                                                     ­107
+Phase noise in 868-, 915-, 920-MHz bands               ± 100 kHz offset                              ­127
+                                                                                                     ­111
+                                                       ± 1 MHz offset                                ­116
+                                                                                                     ­135
+                                                       ± 10 kHz offset
+
+Phase noise in 433-MHz band                            ± 100 kHz offset
+
+                                                       ± 1 MHz offset
+
+                                                       ± 10 kHz offset
+
+Phase noise in 169-MHz band                            ± 100 kHz offset
+
+                                                       ± 1 MHz offset
+
+Copyright © 2011­2015, Texas Instruments Incorporated                                                Specifications  13
+
+                                                       Submit Documentation Feedback
+                                                         Product Folder Links: CC1120
+CC1120                                                                                                                          www.ti.com
+
+SWRS112H ­ JUNE 2011 ­ REVISED JULY 2015
+
+PLL Parameters (continued)
+
+TA = 25°C, VDD = 3.0 V if nothing else stated                  TEST CONDITIONS                                MIN         TYP MAX UNIT
+                         PARAMETER
+
+ LOW-POWER MODE(1)
+
+                                                 ± 10 kHz offset                                                           ­90
+                                                                                                                           ­92
+Phase noise in 950-MHz band                      ± 100 kHz offset                                                         ­124  dBc/Hz
+                                                                                                                           ­95  dBc/Hz
+                                                 ± 1 MHz offset                                                            ­95  dBc/Hz
+                                                                                                                          ­124  dBc/Hz
+                                                 ± 10 kHz offset                                                           ­98
+                                                                                                                          ­102
+Phase noise in 868-, 915-, 920-MHz bands         ± 100 kHz offset                                                         ­129
+                                                                                                                          ­106
+                                                 ± 1 MHz offset                                                           ­110
+                                                                                                                          ­136
+                                                 ± 10 kHz offset
+
+Phase noise in 433-MHz band                      ± 100 kHz offset
+
+                                                 ± 1 MHz offset
+
+                                                 ± 10 kHz offset
+
+Phase noise in 169-MHz band                      ± 100 kHz offset
+
+                                                 ± 1 MHz offset
+
+(1) TA = 25°C, VDD = 3.0 V, fc = 869.5 MHz if nothing else stated
+
+4.8 32-MHz Clock Input (TCXO)
+
+TA = 25°C, VDD = 3.0 V if nothing else stated                        TEST CONDITIONS                            MIN       TYP MAX UNIT
+                                  PARAMETER                                                                   31.25
+                                                                                                                            32 33.6 MHz
+Clock frequency                                                                                                  1.4
+                                                                                                                   0                VDD
+TCXO with CMOS output(1)     High input voltage                TCXO with CMOS output                                                              V
+                             Low input voltage                 directly coupled to pin
+                                                               EXT_OSC                                                                 0.6
+
+Clipped sine output          Clock input amplitude             TCXO clipped sine output                       0.8               1.5 V
+                             (peak-to-peak)                    connected to pin EXT_OSC
+                                                               through series capacitor
+
+(1) For TCXO with CMOS output rise and fall time, see Section 4.15.
+
+4.9 32-MHz Crystal Oscillator                                                   TEST CONDITIONS               MIN         TYP MAX UNIT
+
+TA = 25°C, VDD = 3.0 V if nothing else stated                  It is expected that there be will degraded     31.25       32    33.6 MHz
+                          PARAMETER                            sensitivity at multiples of XOSC/2 in RX, and
+                                                               an increase in spurious emissions when the                 10    pF
+ Crystal frequency                                             RF channel is close to multiples of XOSC in
+                                                               TX. We recommend that the RF channel is                          60 
+ Load capacitance (CL)                                         kept RX_BW/2 away from XOSC/2 in RX,
+ ESR                                                           and that the level of spurious emissions be
+                                                               evaluated if the RF channel is closer than 1
+                                                               MHz to multiples of XOSC in TX.
+
+                                                               Simulated over operating conditions
+
+4.10 32-kHz Clock Input                                                                                MIN           TYP        MAX UNIT
+                                                                                               0.8 × VDD
+TA = 25°C, VDD = 3.0 V if nothing else stated                                                                         32        kHz
+                                                    PARAMETER
+                                                                                                                                V
+ Clock frequency
+ 32-kHz clock input pin input high voltage                                                                                0.2 × VDD V
+ 32-kHz clock input pin input high voltage
+
+14  Specifications                                                                             Copyright © 2011­2015, Texas Instruments Incorporated
+
+                                                               Submit Documentation Feedback
+                                                                 Product Folder Links: CC1120
+www.ti.com                                                                                                                  CC1120
+
+                                                                                         SWRS112H ­ JUNE 2011 ­ REVISED JULY 2015
+
+4.11 32-kHz RC Oscillator
+
+TA = 25°C, VDD = 3.0 V if nothing else stated          TEST CONDITIONS                   MIN               TYP       MAX UNIT
+                           PARAMETER                                                                                             kHz
+
+Frequency                                              After calibration                                   32
+
+Frequency accuracy after calibration                   Relative to frequency reference                ±0.1%
+Initial calibration time(1)                            (32-MHz crystal or TCXO)
+
+(1) For Initial calibration time of the 32-kHz RC Oscillator, see Section 4.15.
+
+4.12 I/O and Reset
+
+TA = 25°C, VDD = 3.0 V if nothing else stated          TEST CONDITIONS                           MIN       TYP       MAX UNIT
+                       PARAMETER                                                         0.8 × VDD
+
+Logic input high voltage                                                                 0.8 × VDD                              V
+
+Logic input low voltage                                                                                         0.2 × VDD V
+
+Logic output high voltage              At 4-mA output load or less                                                              V
+Logic output low voltage
+                                                                                                                0.2 × VDD V
+
+Power-on reset threshold               Voltage on DVDD pin                                                 1.3                  V
+
+4.13 Temperature Sensor                                TEST CONDITIONS                                MIN TYP MAX UNIT
+
+TA = 25°C, VDD = 3.0 V if nothing else stated(1)
+                    PARAMETER
+
+Temperature sensor range                                                                              ­40            85 °C
+
+Temperature coefficient                Change in sensor output voltage versus change in                    2.66                 mV/°C
+                                       temperature
+
+Typical output voltage                 Typical sensor output voltage at TA = 25°C,                              794             mV
+                                       VDD = 3.0 V
+
+VDD coefficient                        Change in sensor output voltage versus change in                    1.17                 mV/V
+                                       VDD
+
+(1) The CC1120 device can be configured to provide a voltage proportional to temperature on GPIO1. The temperature can be estimated
+      by measuring this voltage (see Section 4.13, Temperature Sensor). For more information, refer to CC112X/CC120X On-Chip
+      Temperature Sensor (SWRA415).
+
+4.14 Thermal Resistance Characteristics for RHB Package
+
+NAME                      DESCRIPTION                                                                                °C/W (1)
+
+RJC(top)                  Junction-to-case (top)                                                                     21.1
+RJB                       Junction-to-board                                                                          5.3
+RJA                       Junction-to-free air                                                                       31.3
+PsiJT                     Junction-to-package top                                                                    0.2
+PsiJB                     Junction-to-board                                                                          5.3
+RJC(bot)                  Junction-to-case (bottom)                                                                  0.8
+
+(1) These values are based on a JEDEC-defined 2S2P system (with the exception of the Theta JC [RJC] value, which is based on a
+      JEDEC-defined 1S0P system) and will change based on environment as well as application. For more information, see these
+      EIA/JEDEC standards:
+      · JESD51-2, Integrated Circuits Thermal Test Method Environmental Conditions - Natural Convection (Still Air)
+      · JESD51-3, Low Effective Thermal Conductivity Test Board for Leaded Surface Mount Packages
+      · JESD51-7, High Effective Thermal Conductivity Test Board for Leaded Surface Mount Packages
+      · JESD51-9, Test Boards for Area Array Surface Mount Package Thermal Measurements
+      Power dissipation of 40 mW and an ambient temperature of 25ºC is assumed.
+
+Copyright © 2011­2015, Texas Instruments Incorporated                                                           Specifications       15
+
+                                                       Submit Documentation Feedback
+                                                         Product Folder Links: CC1120
+CC1120                                                                                                       www.ti.com
+
+SWRS112H ­ JUNE 2011 ­ REVISED JULY 2015
+
+4.15 Timing Requirements
+
+TA = 25°C, VDD = 3.0 V, fc = 869.5 MHz if nothing else stated                  TEST CONDITIONS          MIN NOM MAX    UNIT
+                                         PARAMETER                                                                0.4   ms
+                                                                                                                  166   µs
+Power down to IDLE                                                        Depends on crystal                      461   µs
+                                                                                                                   50
+IDLE to RX/TX                                                             Calibration disabled
+                                                                          Calibration enabled
+
+RX/TX turnaround
+
+RX/TX to IDLE time                                                        Calibrate when leaving RX/TX  296
+                                                                          enabled                                           µs
+
+                                                                          Calibrate when leaving RX/TX     0
+                                                                          disabled
+
+Frequency synthesizer calibration                                         When using SCAL strobe        391            µs
+
+Time from start RX until valid RSSI                                       12.5-kHz channels             4.6
+Including gain settling (function of channel bandwidth. Programmable for  200-kHz channels                                 ms
+trade-off between speed and accuracy)
+                                                                                                        0.3
+32-MHz CLOCK INPUT (TCXO)(1)
+
+TCXO with CMOS output                     Rise and fall time                                                 2 ns
+32-kHz RC OSCILLATOR(2)
+
+Initial calibration time                                                                                1.6            ns
+
+(1) See Section 4.8 for more information about the 32-MHz Clock Input (TCXO).
+(2) See Section 4.11 for more information about the 32-kHz RC Oscillator.
+
+4.16 Regulatory Standards
+
+                   PERFORMANCE MODE       FREQUENCY BAND                       SUITABLE FOR COMPLIANCE WITH
+High-performance mode
+Low-power mode                               820­960 MHz(1)                                       ARIB T-96
+                                                                                                 ARIB T-108
+                                             410­480 MHz(2)                          ETSI EN 300 220 category 2
+                                             164­192 MHz(2)                                   ETSI EN 54-25
+                                              820­960 MHz                                     FCC PART 101
+                                              410­480 MHz                             FCC PART 24 SUBMASK D
+                                              164­192 MHz                                   FCC PART 15.247
+                                                                                            FCC PART 15.249
+                                                                                         FCC PART 90 MASK G
+                                                                                         FCC PART 90 MASK J
+
+                                                                                                  ARIB T-67
+                                                                                            ARIB RCR STD-30
+                                                                                     ETSI EN 300 220 category 1
+                                                                                         FCC PART 90 MASK D
+                                                                                         FCC PART 90 MASK G
+
+                                                                                     ETSI EN 300 220 category 1
+                                                                                         FCC PART 90 MASK D
+
+                                                                                     ETSI EN 300 220 category 2
+                                                                                            FCC PART 15.247
+                                                                                            FCC PART 15.249
+
+                                                                                     ETSI EN 300 220 category 2
+
+                                                                                     ETSI EN 300 220 category 2
+
+(1) Performance also suitable for systems targeting maximum allowed output power in the respective bands, using a range extender such
+      as the CC1190 device
+
+(2) Performance also suitable for systems targeting maximum allowed output power in the respective bands, using a range extender
+
+16  Specifications                                                             Copyright © 2011­2015, Texas Instruments Incorporated
+
+                                          Submit Documentation Feedback
+                                            Product Folder Links: CC1120
+www.ti.com                                                                                                                                                                                            CC1120
+
+                                                                                                                                                                   SWRS112H ­ JUNE 2011 ­ REVISED JULY 2015
+
+4.17 Typical Characteristics                                                                                                                               rev.1.0.1,   CC1120EM_955                rev.1.2.1,
+TA = 25°C, VDD = 3.0 V, fc = 869.5 MHz if nothing else stated.
+All measurements performed on CC1120EM_868_915
+CC1120EM_420_470 rev.1.0.1, or CC1120EM_169 rev.1.2.
+
+Figure 4-17 was measured at the 50- antenna connector.
+
+                   -120                                                                                                                        -120
+
+Sensitivity (dBm)  -121                                                                                                     Sensitivity (dBm)  -121
+
+                   -122
+                                                                                                                        -122
+
+                   -123
+
+                   -124                                                                                                                        -123
+
+                   -125                  0                    40                      80                                                       -124                2.5                   3                      3.5
+                        -40                                                                                                                          2
+                                            Temperature (ºC)         10-kHz Channel                                                                                     Supply Voltage (V)       10-kHz Channel
+                   1.2 kbps,                                         Filter Bandwidth                                                          1.2 kbps,                                         Filter Bandwidth
+                                         4-kHz Deviation,                                                                                                          4-kHz Deviation,
+
+                            Figure 4-1. Sensitivity vs Temperature                                                                                         Figure 4-2. Sensitivity vs Voltage
+
+                   -114                                                                                                                        23.2
+                   -116
+                                                                                                                                               22.8
+
+Sensitivity (dBm)  -118                                                                   RX Current (mA)                                      22.4
+                   -120
+
+                   -122                                                                                                                        22
+                   -124
+                                                                                                                                               21.6
+
+                   -126                                                                                                                        21.2
+                   -128
+
+                   -130                                                                                                                        20.8
+                                                                                                                                                   -130
+                         3    5  7          9       11            13      15  17                                                                                   -80                      -30             20
+                                                                                                                                                1.2 kbps,
+                                         Sync Word Detect Threshold                                                                                                     Input Level (dBm)
+
+                   1.2 kbps,             4-kHz Deviation,            10-kHz Channel                                                                                4-kHz Deviation,              10-kHz Channel
+                                                                     Filter Bandwidth                                                                                                            Filter Bandwidth
+
+                         Figure 4-3. Sync Word Sensitivity vs Voltage                                                                                 Figure 4-4. RX Current vs Input Level
+
+                   70                                                                                                                          70
+
+                   60                                                                                                                          60
+
+Selectivity (dB)   50                                                                     Selectivity (dB)                                     50
+
+                   40                                                                                                                          40
+
+                   30                                                                                                                          30
+
+                   20                                                                                                                          20
+
+                   10                                                                                                                          10
+
+                   0
+
+                   -10                                                                                                                         0
+
+                   -20                                                                                                                         -10
+
+                   169.9         169.95        170                170.05      170.1                                                            859.9       859.95       860                 860.05          860.1
+
+                   1.2 kbps,                 Frequency (MHz)         10-kHz Channel                                                            1.2 kbps,                Frequency (MHz)          10-kHz Channel
+                                         4-kHz Deviation,            Filter Bandwidth                                                                              4-kHz Deviation,              Filter Bandwidth
+
+Figure 4-5. Selectivity vs Offset Frequency (12.5-kHz Channels)                           Figure 4-6. Selectivity vs Offset Frequency (12.5-kHz Channels)
+
+Copyright © 2011­2015, Texas Instruments Incorporated                                                                                                                                       Specifications           17
+
+                                                                      Submit Documentation Feedback
+                                                                        Product Folder Links: CC1120
+CC1120                                                                                                                                                                        www.ti.com
+
+SWRS112H ­ JUNE 2011 ­ REVISED JULY 2015
+
+Typical Characteristics (continued)
+
+    100                                                                                                                  17
+
+    80
+RSSI
+                                                                                                     Output Power (dBm)6016.5
+
+    40                                                                                                                   16
+
+    20
+
+    0                                                                                                                    15.5
+
+    -20
+
+  -40                    -100             -50      0                                                                     15               0  40                                         80
+     -150                                                                                                                  -40                                                3.6 V
+                               Input Level (dBm)                                                                                             Temperature (ºC)
+1.2 kbps,                                                                                                                   Max Setting,        170 MHz,
+            4-kHz Deviation,   10-kHz Channel Filter
+                                      Bandwidth
+
+            Figure 4-7. RSSI vs Input Level                                                                                          Figure 4-8. Output Power vs Temperature
+
+    18                                                                                                                   20
+                                                                                                                         10
+    16                                                                                                                     0
+                                                                                                                         -10
+                                                                                                                         -20
+                                                                                                                         -30
+                                                                                                                         -40
+                                                                                                                         -50
+Output Power (dBm)14
+                                                                                                           Output Power (dBm)
+    12
+                                                                                                          7F
+                                                                                                               7B10
+                                                                                                                     77
+                                                                                                                          738
+                                                                                                                                6F
+                                                                                                                                     6B6
+                                                                                                                                           67
+                                                                                                                                                63
+                                                                                                                                                      5F
+                                                                                                                                                           5B
+                                                                                                                                                                 57
+                                                                                                                                                                      53
+                                                                                                                                                                            4F
+                                                                                                                                                                                 4B
+                                                                                                                                                                                       47
+                                                                                                                                                                                            43
+         2               2.5              3           3.5
+
+                               Supply Voltage (V)                                                                                                             PA power setting
+                                                                                                                         Figure 4-10. Output Power at 868 MHz vs PA Power Setting
+            Max Setting,       170 MHz,
+
+            Figure 4-9. Output Power vs Voltage
+
+    60
+
+    50
+
+TX Current (mA)40
+     7F
+          7B30
+                77
+                     7320
+                           6F
+                                6B10
+                                      67
+                                           630
+                                                5F
+                                                      5B
+                                                            57
+                                                                 53
+                                                                      4F
+                                                                            4B
+                                                                                 47
+                                                                                       43
+
+                               PA power setting                                                                                Figure 4-12. Phase Noise in 868-MHz Band
+            Figure 4-11. TX Current at 868 MHz
+
+                      vs PA Power Setting
+
+18       Specifications                                                                                                                   Copyright © 2011­2015, Texas Instruments Incorporated
+
+                                                   Submit Documentation Feedback
+                                                     Product Folder Links: CC1120
+www.ti.com                                                                                                                                                                                CC1120
+
+Typical Characteristics (continued)                                                                                                                    SWRS112H ­ JUNE 2011 ­ REVISED JULY 2015
+
+           9.6 kbps in 12.5-kHz Channel                                                                                                             1.2 kbps 2-FSK,      DEV = 4 kHz
+        Figure 4-13. FCC Part 90 Mask D
+                                                                                                                                                       Figure 4-14. Eye Diagram
+
+3.1GPIO Output High Voltage (V)                                                                                                          1400
+2.9                                                                                                        GPIO Output Low Voltage (mV)  1200
+2.7                                                                                                                                      1000
+2.5     5  10  15  20        25                        30  35                                                                                       5  10            15  20        25  30          35
+2.3                                                                                                                                       800
+2.1                                                                                                                                       600
+1.9                                                                                                                                       400
+1.7                                                                                                                                       200
+1.5
+                                                                                                                                              0
+     0                                                                                                                                           0
+
+               Current (mA)                                                                                                                                          Current (mA)
+
+Figure 4-15. GPIO Output High Voltage vs Current Being Sourced Figure 4-16. GPIO Output Low Voltage vs Current Being Sinked
+
+                   Figure 4-17. Output Power vs Load Impedance (+14-dBm Setting)
+
+Copyright © 2011­2015, Texas Instruments Incorporated                                                                                                                              Specifications  19
+
+                                                       Submit Documentation Feedback
+                                                         Product Folder Links: CC1120
+CC1120                                                                                                                                                                            www.ti.com
+
+SWRS112H ­ JUNE 2011 ­ REVISED JULY 2015                                                                                                                                         CSn (chip select)
+                                                                                                                                                                                 SI (serial input)
+5 Detailed Description                                                                                                                                                           SO (serial output)
+5.1 Block Diagram                                                                                                                                                                SCLK (serial clock)
+                                                                                                                                                                                 (optional GPIO0-3)
+         Figure 5-1 shows the system block diagram of the CC1120 devices.
+                                                                                                                                                                                 (optional autodetected
+                     CC112X                                                                                                                                                      external XOSC / TCXO)
+                                                                                                                                                                                 XOSC_Q1
+(optional 32kHz         Ultra low power 32kHz       Power on reset           4k byte                MARC                                  SPI                                    XOSC_Q2
+    clock intput)    auto-calibrated RC oscillator                            ROM        Main Radio Control Unit                Serial configuration                             (optional bit clock)
+                                                                                                                                and data interface                               (optional low jitter serial
+                                                                                          Ultra low power 16 bit                                                                 data output for legacy
+                                                                                                     MCU                                                                         protocols)
+
+                                                                             System bus                                                               Interrupt and
+                                                                                                                                                       IO handler
+
+                                 eWOR               Battery sensor /  Configuration and   256 byte                               Packet handler
+                     Enhanced ultra low power         temp sensor      status registers  FIFO RAM                               and FIFO control
+
+                       Wake On Radio timer                                                  buffer
+
+                     RF and DSP frontend
+
+    PA                       14dBm high             Output power ramping and OOK / ASK modulation                    Modulator  Data interface with
+                             efficiency PA                                                                                      signal chain access
+                                                               I                                                                                      XOSC
+                                                                                 Fully integrated Fractional-N
+                                                                                    Frequency Synthesizer
+
+                                                              Q
+
+              LNA_P                                                   ifamp              90dB dynamic
+                                                                                           range ADC
+              LNA_N
+                             High linearity                                                                          Channel                          Highly flexible FSK / OOK
+(optional GPIO for                LNA                                                                                   filter                                demodulator
+antenna diversity)
+                                                                                                                                         Cordic
+
+                                                                      ifamp              90dB dynamic
+                                                                                           range ADC
+
+                                                                                                   AGC
+                                                                          Automatic Gain Control, 60dB VGA range
+                                                                      RSSI measurements and carrier sense detection
+
+                                                   Figure 5-1. System Block Diagram
+
+5.2 Frequency Synthesizer
+
+         At the center of the CC1120 device there is a fully integrated, fractional-N, ultra-high-performance
+         frequency synthesizer. The frequency synthesizer is designed for excellent phase noise performance,
+         providing very high selectivity and blocking performance. The system is designed to comply with the most
+         stringent regulatory spectral masks at maximum transmit power.
+
+         Either a crystal can be connected to XOSC_Q1 and XOSC_Q2, or a TCXO can be connected to the
+         EXT_XOSC input. The oscillator generates the reference frequency for the synthesizer, as well as clocks
+         for the analog-to-digital converter (ADC) and the digital part. To reduce system cost, CC1120 device has
+         high-accuracy frequency estimation and compensation registers to measure and compensate for crystal
+         inaccuracies. This compensation enables the use of lower cost crystals. If a TCXO is used, the CC1120
+         device automatically turns on and off the TCXO when needed to support low-power modes and Wake-On-
+         Radio operation.
+
+20  Detailed Description                                                                                                        Copyright © 2011­2015, Texas Instruments Incorporated
+
+                                                                      Submit Documentation Feedback
+                                                                        Product Folder Links: CC1120
+www.ti.com                                                                                                                CC1120
+
+                                                                                       SWRS112H ­ JUNE 2011 ­ REVISED JULY 2015
+
+5.3 Receiver
+
+         The CC1120 device features a highly flexible receiver. The received RF signal is amplified by the low-
+         noise amplifier (LNA) and is down-converted in quadrature (I/Q) to the intermediate frequency (IF). At IF,
+         the I/Q signals are digitized by the high dynamic-range ADCs.
+
+         An advanced automatic gain control (AGC) unit adjusts the front-end gain, and enables the CC1120
+         device to receive strong and weak signals, even in the presence of strong interferers. High-attenuation
+         channels and data filtering enable reception with strong neighbor channel interferers. The I/Q signal is
+         converted to a phase and magnitude signal to support the FSK and OOK modulation schemes.
+
+                                                                            NOTE
+                           A unique I/Q compensation algorithm removes any problem of I/Q mismatch, thus avoiding
+                           time-consuming and costly I/Q image calibration steps.
+
+         The CC1120 device only requires preamble to settle the AGC. The minimum number of preamble required
+         is 0.5 byte.
+
+5.4 Transmitter
+
+         The CC1120 transmitter is based on direct synthesis of the RF frequency (in-loop modulation). To use the
+         spectrum effectively, the CC1120 device has extensive data filtering and shaping in TX mode to support
+         high throughput data communication in narrowband channels. The modulator also controls power ramping
+         to remove issues such as spectral splattering when driving external high-power RF amplifiers.
+
+5.5 Radio Control and User Interface
+
+         The CC1120 digital control system is built around the main radio control (MARC), which is implemented
+         using an internal high-performance, 16-bit ultra-low-power processor. MARC handles power modes, radio
+         sequencing, and protocol timing.
+
+         A 4-wire SPI serial interface is used for configuration and data buffer access. The digital baseband
+         includes support for channel configuration, packet handling, and data buffering. The host MCU can stay in
+         power-down mode until a valid RF packet is received. This greatly reduces power consumption. When the
+         host MCU receives a valid RF packet, it burst-reads the data. This reduces the required computing power.
+
+         The CC1120 radio control and user interface are based on the widely used CC1101 transceiver. This
+         relationship enables an easy transition between the two platforms. The command strobes and the main
+         radio states are the same for the two platforms.
+
+         For legacy formats, the CC1120 device also supports two serial modes.
+         · Synchronous serial mode: The CC1120 device performs bit synchronization and provides the MCU
+
+             with a bit clock with associated data.
+         · Transparent mode: The CC1120 device outputs the digital baseband signal using a digital interpolation
+
+             filter to eliminate jitter introduced by digital filtering and demodulation.
+
+5.6 Enhanced Wake-On-Radio (eWOR)
+
+         eWOR, using a flexible integrated sleep timer, enables automatic receiver polling with no intervention from
+         the MCU. When the CC1120 device enters RX mode, it listens and then returns to sleep if a valid RF
+         packet is not received. The sleep interval and duty cycle can be configured to make a trade-off between
+         network latency and power consumption. Incoming messages are time-stamped to simplify timer re-
+         synchronization.
+
+         The eWOR timer runs off an ultra-low-power 32-kHz RC oscillator. To improve timing accuracy, the RC
+         oscillator can be automatically calibrated to the RF crystal in configurable intervals.
+
+Copyright © 2011­2015, Texas Instruments Incorporated                                  Detailed Description  21
+
+                                                       Submit Documentation Feedback
+                                                         Product Folder Links: CC1120
+CC1120                                                                    www.ti.com
+
+SWRS112H ­ JUNE 2011 ­ REVISED JULY 2015
+
+5.7 Sniff Mode
+
+         The CC1120 device supports quick start up times, and requires few preamble bits. Sniff mode uses these
+         conditions to dramatically reduce the current consumption while the receiver is waiting for data.
+
+         Because the CC1120 device can wake up and settle much faster than the duration of most preambles, it
+         is not required to be in RX mode continuously while waiting for a packet to arrive. Instead, the enhanced
+         Wake-On-Radio feature can be used to put the device into sleep mode periodically. By setting an
+         appropriate sleep time, the CC1120 device can wake up and receive the packet when it arrives with no
+         performance loss. This sequence removes the need for accurate timing synchronization between
+         transmitter and receiver, and lets the user trade off current consumption between the transmitter and
+         receiver.
+
+         For more information, see the sniff mode design note (SWRA428).
+
+5.8 Antenna Diversity
+
+         Antenna diversity can increase performance in a multipath environment. An external antenna switch is
+         required. The CC1201 device uses one of the GPIO pins to automatically control the switch. This device
+         also supports differential output control signals typically used in RF switches.
+
+         If antenna diversity is enabled, the GPIO alternates between high and low states until a valid RF input
+         signal is detected. An optional acknowledge packet can be transmitted without changing the state of the
+         GPIO.
+
+         An incoming RF signal can be validated by received signal strength or by using the automatic preamble
+         detector. Using the automatic preamble detector ensures a more robust system and avoids the need to
+         set a defined signal strength threshold (such a threshold sets the sensitivity limit of the system).
+
+22  Detailed Description                                                  Copyright © 2011­2015, Texas Instruments Incorporated
+
+                                          Submit Documentation Feedback
+                                            Product Folder Links: CC1120
+www.ti.com                                                                                                                CC1120
+
+                                                                                       SWRS112H ­ JUNE 2011 ­ REVISED JULY 2015
+
+5.9 WaveMatch
+
+         Advanced capture logic locks onto the synchronization word and does not require preamble settling bytes.
+         Therefore, receiver settling time is reduced to the settling time of the AGC, typically 4 bits.
+
+         The WaveMatch feature also greatly reduces false sync triggering on noise, further reducing the power
+         consumption and improving sensitivity and reliability. The same logic can also be used as a high-
+         performance preamble detector to reliably detect a valid preamble in the channel.
+
+See SWRC046 for more information.
+
+                        Figure 5-2. Receiver Configurator in SmartRFTM Studio
+
+Copyright © 2011­2015, Texas Instruments Incorporated                                  Detailed Description  23
+
+                                                       Submit Documentation Feedback
+                                                         Product Folder Links: CC1120
+CC1120                                                                                                                                                 www.ti.com
+
+SWRS112H ­ JUNE 2011 ­ REVISED JULY 2015
+
+6 Application, Implementation, and Layout
+
+                                                        NOTE
+    Information in the following Applications section is not part of the TI component specification,
+    and TI does not warrant its accuracy or completeness. TI's customers are responsible for
+    determining suitability of components for their purposes. Customers should validate and test
+    their design implementation to confirm system functionality.
+
+6.1 Application Information
+6.1.1 Typical Application Circuit
+
+                                                        NOTE
+    This section is intended only as an introduction. The reference designs listed in Section 6.1.2
+    show everything required.
+
+    Very few external components are required for the operation of the CC1120 device. Figure 6-1 shows a
+    typical application circuit. The board layout will greatly influence the RF performance of the CC1120
+    device. Figure 6-1 does not show decoupling capacitors for power pins.
+
+                           Optional
+
+                           XOSC/                   32 MHz
+                           TCXO                    crystal
+
+                                                            vdd
+                                                                   vdd
+                                                                                 vdd
+
+    (optional control pin                        EXT_XOSC 32
+           from CC1120)                                  XOSC_Q2 31
+                                                                  XOSC_Q1 30
+                           vdd       1                                                                                       LPF1 24
+                                        VDD_GUARD                         DCPL_XOSC 29
+                                                                                   AVDD_XOSC 28
+                                                                                           AVDD_SYNTH2 27
+                                                                                                    DCPL_PFD_CHP 26
+
+                                                                                                             25
+                                                                                                               AVDD_PFD_CHP
+
+                                     2 RESET_N                                                                               LPF0 23
+
+                                     3 GPIO3                                          AVDD_SYNTH1 22                                              vdd
+
+                           vdd       4 GPIO2       CC1120                                                                    DCPL_VCO 21
+                                     5 DVDD                                                                                        LNA_N 20
+                                     6 DCPL                                                                                        LNA_P 19
+
+                                     7 SI                                                                                    TRX_SW 18
+
+                                     8 SCLK                                                                                  PA 17
+
+                                                 9 SO (GPIO1)                                                                                vdd
+                                                         10 GPIO0
+                                                                  11 CSn
+                                                                          12 DVDD
+                                                                                   13 AVDD_IF
+                                                                                           14 RBIAS
+                                                                                                    15 AVDD_RF
+                                                                                                             16 N.C.
+
+                                                            vdd
+                                                                   vdd
+                                                                                 vdd
+
+    MCU connection
+    SPI interface and
+    optional gpio pins
+
+                                           Figure 6-1. Typical Application Circuit
+
+24  Application, Implementation, and Layout                                                                                  Copyright © 2011­2015, Texas Instruments Incorporated
+
+                                                   Submit Documentation Feedback
+
+                                                   Product Folder Links: CC1120
+www.ti.com                                                                                                               CC1120
+
+                                                                                      SWRS112H ­ JUNE 2011 ­ REVISED JULY 2015
+
+6.1.2 TI Reference Designs
+
+         The following reference designs are available for the CC1120 device:
+
+         CC1120EM-868-915-RD CC1120EM 868- to 915-MHz Reference Design
+         This RF Layout Reference Design demonstrates good decoupling and layout techniques for a low power
+         RF device operating in the 868-MHz and 915-MHz frequency bands.
+
+                           CC1120EM 868/915 MHz Reference Design (SWRC222)
+                           CC112x IPC 868- and 915-MHz 2-layer Reference Design (SWRR106)
+                           CC112x IPC 868- and 915-MHz 4-layer Reference Design (SWRR107)
+
+         CC1120EM-169-RD CC1120EM 169-MHz Reference Design
+         This RF Layout Reference Design demonstrates good decoupling and layout techniques for a low power
+         RF device operating in the 169-MHz frequency band. (SWRC220)
+
+         CC1120EM-420-470-RD CC1120EM 420- to 470-MHz Reference Design
+         This RF Layout Reference Design demonstrates good decoupling and layout techniques for a low power
+         RF device operating in the 420-470 MHz frequency band. (SWRC221)
+
+Copyright © 2011­2015, Texas Instruments Incorporated                                 Application, Implementation, and Layout  25
+
+                                                       Submit Documentation Feedback
+
+                                                       Product Folder Links: CC1120
+CC1120                                                                     www.ti.com
+
+SWRS112H ­ JUNE 2011 ­ REVISED JULY 2015
+
+7 Device and Documentation Support
+
+7.1 Device Support
+
+7.1.1 Development Support
+
+7.1.1.1 Configuration Software
+
+         The CC1120 device can be configured using the SmartRF Studio software (SWRC046). The SmartRF
+         Studio software is highly recommended for obtaining optimum register settings, and for evaluating
+         performance and functionality.
+
+7.1.2 Device and Development-Support Tool Nomenclature
+
+    To designate the stages in the product development cycle, TI assigns prefixes to the part numbers of all
+    microprocessors (MPUs) and support tools. Each device has one of three prefixes: X, P, or null (no prefix)
+    (for example, CC1120). Texas Instruments recommends two of three possible prefix designators for its
+    support tools: TMDX and TMDS. These prefixes represent evolutionary stages of product development
+    from engineering prototypes (TMDX) through fully qualified production devices and tools (TMDS).
+
+    Device development evolutionary flow:
+
+    X     Experimental device that is not necessarily representative of the final device's electrical
+
+          specifications and may not use production assembly flow.
+
+    P     Prototype device that is not necessarily the final silicon die and may not necessarily meet
+
+          final electrical specifications.
+
+    null  Production version of the silicon die that is fully qualified.
+
+    Support tool development evolutionary flow:
+
+    TMDX  Development-support product that has not yet completed Texas Instruments internal
+          qualification testing.
+
+    TMDS  Fully qualified development-support product.
+
+    X and P devices and TMDX development-support tools are shipped against the following disclaimer:
+
+    "Developmental product is intended for internal evaluation purposes."
+
+    Production devices and TMDS development-support tools have been characterized fully, and the quality
+    and reliability of the device have been demonstrated fully. TI's standard warranty applies.
+
+    Predictions show that prototype devices (X or P) have a greater failure rate than the standard production
+    devices. Texas Instruments recommends that these devices not be used in any production system
+    because their expected end-use failure rate still is undefined. Only qualified production devices are to be
+    used.
+
+    TI device nomenclature also includes a suffix with the device family name. This suffix indicates the
+    package type (for example, RHB) and the temperature range (for example, blank is the default commercial
+    temperature range) provides a legend for reading the complete device name for any CC1120 device.
+
+    For orderable part numbers of CC1120 devices in the QFN package types, see the Package Option
+    Addendum of this document, the TI website (www.ti.com), or contact your TI sales representative.
+
+26  Device and Documentation Support                                      Copyright © 2011­2015, Texas Instruments Incorporated
+
+                                          Submit Documentation Feedback
+                                            Product Folder Links: CC1120
+www.ti.com                                                                                                                CC1120
+
+                                                                                       SWRS112H ­ JUNE 2011 ­ REVISED JULY 2015
+
+7.2 Documentation Support
+
+         The following documents supplement the CC1120 transceiver. Copies of these documents are available
+         on the Internet at www.ti.com. Tip: Enter the literature number in the search box provided at www.ti.com.
+
+         SWRU295 CC112X/CC1175 Low-Power High Performance Sub-1 GHz RF Transceivers/Transmitter
+                           User's Guide
+
+         SWRA398 Using the CC112x/CC1175 at 274 to 320 MHz
+
+         SWRC046 SmartRF Studio Software
+
+         SWRA428 CC112x/CC120x Sniff Mode Application Note
+
+         SWRZ039 CC112x, CC1175 Silicon Errata
+
+         SWRR106 CC112x IPC 868- and 915-MHz 2-layer Reference Design
+
+         SWRR107 CC112x IPC 868- and 915-MHz 4-layer Reference Design
+
+         SWRC220 CC1120EM 169-MHz Reference Design
+
+         SWRC221 CC1120EM 420- to 470-MHz Reference Design
+
+         SWRC222 CC1120EM 868- to 915-MHz Reference Design
+
+7.2.1 Community Resources
+
+         The following links connect to TI community resources. Linked contents are provided "AS IS" by the
+         respective contributors. They do not constitute TI specifications and do not necessarily reflect TI's views;
+         see TI's Terms of Use.
+
+         TI E2ETM Online Community TI's Engineer-to-Engineer (E2E) Community. Created to foster
+                           collaboration among engineers. At e2e.ti.com, you can ask questions, share knowledge,
+                           explore ideas and help solve problems with fellow engineers.
+
+         Design Support TI's Design Support Quickly find helpful E2E forums along with design support tools
+                           and contact information for technical support.
+
+7.3 Trademarks
+         SmartRF, E2E are trademarks of Texas Instruments.
+
+7.4 Electrostatic Discharge Caution
+
+             This integrated circuit can be damaged by ESD. Texas Instruments recommends that all integrated circuits be handled with
+             appropriate precautions. Failure to observe proper handling and installation procedures can cause damage.
+             ESD damage can range from subtle performance degradation to complete device failure. Precision integrated circuits may be more
+             susceptible to damage because very small parametric changes could cause the device not to meet its published specifications.
+
+7.5 Glossary
+         SLYZ022 -- TI Glossary.
+             This glossary lists and explains terms, acronyms, and definitions.
+
+Copyright © 2011­2015, Texas Instruments Incorporated                                  Device and Documentation Support  27
+
+                                                       Submit Documentation Feedback
+                                                         Product Folder Links: CC1120
+CC1120                                                                   www.ti.com
+
+SWRS112H ­ JUNE 2011 ­ REVISED JULY 2015
+
+8 Mechanical Packaging and Orderable Information
+
+         The following pages include mechanical packaging and orderable information. This information is the most
+         current data available for the designated devices. This data is subject to change without notice and
+         revision of this document. For browser-based versions of this data sheet, refer to the left-hand navigation.
+
+28  Mechanical Packaging and Orderable Information                       Copyright © 2011­2015, Texas Instruments Incorporated
+
+                                          Submit Documentation Feedback
+
+                                          Product Folder Links: CC1120
+www.ti.com                                                                                                                                                   PACKAGE OPTION ADDENDUM
+
+                                                                                                                                                                                                                            25-Mar-2026
+
+PACKAGING INFORMATION
+
+Orderable part number  Status Material type  Package | Pins          Package qty | Carrier  RoHS                   Lead finish/                              MSL rating/                 Op temp (°C)  Part marking
+                                                                                                                   Ball material                             Peak reflow
+                       (1)     (2)                                                             (3)                                                                                          -40 to 85            (6)
+                                                                                                                                                                                            -40 to 85
+                                                                                             Yes                   (4)                                       (5)                            -40 to 85     CC1120
+                                                                                             Yes                                                                                            -40 to 85     CC1120
+ CC1120RHBR            Active  Production    VQFN (RHB) | 32         3000 | LARGE T&R        Yes                   NIPDAU | NIPDAUAG Level-3-260C-168 HR                                                  CC1120
+CC1120RHBR.A           Active  Production    VQFN (RHB) | 32         3000 | LARGE T&R        Yes                                                                                                          CC1120
+                       Active  Production    VQFN (RHB) | 32          250 | SMALL T&R                              NIPDAU         Level-3-260C-168 HR
+ CC1120RHBT            Active  Production    VQFN (RHB) | 32          250 | SMALL T&R
+CC1120RHBT.A                                                                                                       NIPDAU | NIPDAUAG Level-3-260C-168 HR
+
+                                                                                                                   NIPDAU         Level-3-260C-168 HR
+
+(1) Status: For more details on status, see our product life cycle.
+
+(2) Material type: When designated, preproduction parts are prototypes/experimental devices, and are not yet approved or released for full production. Testing and final process, including without limitation quality assurance,
+reliability performance testing, and/or process qualification, may not yet be complete, and this item is subject to further changes or possible discontinuation. If available for ordering, purchases will be subject to an additional
+waiver at checkout, and are intended for early internal evaluation purposes only. These items are sold without warranties of any kind.
+
+(3) RoHS values: Yes, No, RoHS Exempt. See the TI RoHS Statement for additional information and value definition.
+
+(4) Lead finish/Ball material: Parts may have multiple material finish options. Finish options are separated by a vertical ruled line. Lead finish/Ball material values may wrap to two lines if the finish value exceeds the maximum
+column width.
+
+(5) MSL rating/Peak reflow: The moisture sensitivity level ratings and peak solder (reflow) temperatures. In the event that a part has multiple moisture sensitivity ratings, only the lowest level per JEDEC standards is shown.
+Refer to the shipping label for the actual reflow temperature that will be used to mount the part to the printed circuit board.
+
+(6) Part marking: There may be an additional marking, which relates to the logo, the lot trace code information, or the environmental category of the part.
+
+Multiple part markings will be inside parentheses. Only one part marking contained in parentheses and separated by a "~" will appear on a part. If a line is indented then it is a continuation of the previous line and the two
+combined represent the entire part marking for that device.
+
+Important Information and Disclaimer:The information provided on this page represents TI's knowledge and belief as of the date that it is provided. TI bases its knowledge and belief on information provided by third parties, and
+makes no representation or warranty as to the accuracy of such information. Efforts are underway to better integrate information from third parties. TI has taken and continues to take reasonable steps to provide representative
+and accurate information but may not have conducted destructive testing or chemical analysis on incoming materials and chemicals. TI and TI suppliers consider certain information to be proprietary, and thus CAS numbers
+and other limited information may not be available for release.
+
+In no event shall TI's liability arising out of such information exceed the total purchase price of the TI part(s) at issue in this document sold by TI to Customer on an annual basis.
+
+                                                                     Addendum-Page 1
+www.ti.com                                                           PACKAGE MATERIALS INFORMATION
+
+TRAY                                                                                                                                                               25-Mar-2026
+
+Text                              L - Outer tray length without tabs                                                KO -
+                                                                                                                   Outer
+                                                                                                                    tray
+                                                                                                                   height
+
+                                                                                                     W-
+                                                                                                    Outer
+                                                                                                     tray
+                                                                                                    width
+
+                                                    P1 - Tray unit pocket pitch
+
+            CW - Measurement for tray edge (Y direction) to corner pocket center
+             CL - Measurement for tray edge (X direction) to corner pocket center
+
+Chamfer on Tray corner indicates Pin 1 orientation of packed units.
+
+*All dimensions are nominal
+
+Device                       Package  Package  Pins  SPQ Unit array Max L (mm) W                     K0    P1 CL CW
+                               Name     Type                                                        (µm)  (mm) (mm) (mm)
+                                                32                   matrix temperature  (mm)
+                                       VQFN     32                                                  7620   8.8 7.9 8.15
+                                       VQFN     32                    (°C)                          7620   8.8 7.9 8.15
+                                       VQFN     32                                                  7620   8.8 7.9 8.15
+ CC1120RHBR                  RHB       VQFN     32   3000 14 x 35     150                315 135.9  7620   8.8 7.9 8.15
+ CC1120RHBR                  RHB       VQFN     32                                                  7620   8.8 7.9 8.15
+CC1120RHBR.A                 RHB       VQFN     32   3000 14 x 35     150                315 135.9  7620   8.8 7.9 8.15
+CC1120RHBR.A                 RHB       VQFN     32                                                  7620   8.8 7.9 8.15
+ CC1120RHBT                  RHB       VQFN          3000 14 x 35     150                315 135.9  7620   8.8 7.9 8.15
+ CC1120RHBT                  RHB
+CC1120RHBT.A                 RHB                     3000 14 x 35     150                315 135.9
+CC1120RHBT.A                 RHB
+                                                     250 35 x 14      150                315 135.9
+
+                                                     250 35 x 14      150                315 135.9
+
+                                                     250 35 x 14      150                315 135.9
+
+                                                     250 35 x 14      150                315 135.9
+
+                                                     Pack Materials-Page 1
+RHB 32                           GENERIC PACKAGE VIEW
+
+5 x 5, 0.5 mm pitch                        VQFN - 1 mm max height
+
+                                                 PLASTIC QUAD FLATPACK - NO LEAD
+
+Images above are just a representation of the package family, actual package may vary.
+Refer to the product data sheet for package details.
+
+                                                                                        4224745/A
+
+                     www.ti.com
+RHB0032E                                                                                                                                                                                                                                                                                                                                          SCALE 3.000                         PACKAGE OUTLINE
+
+                                     A                    5.1                                                                                                                                                                                                                                                                                                                         VQFN - 1 mm max height
+                                                          4.9
+                                                                                                                                                                                                                                                                                                                                                                                            PLASTIC QUAD FLATPACK - NO LEAD
+
+                                                                                                                                                                                                                                                                                                                                                                               B
+
+PIN 1 INDEX AREA
+
+                                                                                                                                                                                                                                                                                                                                                                               5.1                      (0.1)
+
+                                                                                                                                                                                                                                                                                                                                                                               4.9
+
+                                                                                                                                                                                                                                                                                                                                                                                                      SIDE WALL DETAIL
+                                                                                                                                                                                                                                                                                                                                                                                              OPTIONAL METAL 20.000 THICKNESS
+
+1 MAX                                                                                                                                                                                                                                                                                                                                                                               C
+                                                                                                                                                                                                                                                                                                                                                                                         SEATING PLANE
+0.05                                                                                                                                                                                                                                                                                                                                                                                   0.08 C
+0.00
+
+                                                          2X 3.5                                                                                                                                                                                                                                                                                                                                        (0.2) TYP
+                                                          3.45 0.1
+                                                 9                                                                                                                                                                                                                                                                                                                  16         EXPOSED
+                                        8                       33
+                                                                                                                                                                                                                                                                                                                                                                               THERMAL PAD
+
+28X 0.5
+
+                                                                                                                                                                                                                                                                                                                                                                           17       SEE SIDE WALL
+
+                                                                                                                                                                                                                                                                                                                                                                                              DETAIL
+
+2X                                                                                                                                                                                                                                                                                                                                                                         SYMM
+3.5
+
+                                                                                                                                                                                                                                                                                                                                                                                    32X  0.3
+                                                                                                                                                                                                                                                                                                                                                                                         0.2
+
+                                        1                                                                                                                                                                                                                                                                                                                                  24            0.1 C A B
+
+                                                                                                                                                                                                                                                                                                                                                                                         0.05 C
+
+                                                      32                                                                                                                                                                                                                                                                                                            25
+                             PIN 1 ID
+                       (OPTIONAL)                         SYMM                                                                                                                                                                                                                                                                                                 0.5
+                                                                                                                                                                                                                                                                                                                                                               0.3
+NOTES:                                                              32X
+
+                                                                                                                                                                                                                                                                                                                                                                                                        4223442/B 08/2019
+
+1. All linear dimensions are in millimeters. Any dimensions in parenthesis are for reference only. Dimensioning and tolerancing
+   per ASME Y14.5M.
+
+2. This drawing is subject to change without notice.
+3. The package thermal pad must be soldered to the printed circuit board for thermal and mechanical performance.
+
+                                                                                                                                                                                                                                                                                                                                                               www.ti.com
+RHB0032E                                                  ( 3.45)                  EXAMPLE BOARD LAYOUT
+                                                           SYMM
+                                                      32                                      VQFN - 1 mm max height
+                     32X (0.6)
+                                                                                                      PLASTIC QUAD FLATPACK - NO LEAD
+                                    1
+               32X (0.25)                                                                       25
+
+                     28X (0.5)                                                                                       24
+
+                ( 0.2) TYP                                                                                           (1.475)
+                           VIA
+                                                                       33                                                     SYMM
+
+                                                                                                                                    (4.8)
+
+                    8                                                                                                17
+
+(R0.05)
+    TYP
+
+                                             9                                                                   16
+                                                                                          (1.475)
+                          0.07 MAX                                           (4.8)
+                    ALL AROUND
+                                                          LAND PATTERN EXAMPLE
+                                                                                                                     SOLDER MASK
+                                                                         SCALE:18X                                   OPENING
+
+                                                                                                         0.07 MIN
+                                                                                                 ALL AROUND
+
+                                                          METAL
+
+                                                          SOLDER MASK                                                    METAL UNDER
+                                                          OPENING                                                        SOLDER MASK
+
+                       NON SOLDER MASK                                                                  SOLDER MASK
+                               DEFINED                                                                      DEFINED
+
+                           (PREFERRED)                    SOLDER MASK DETAILS
+
+                                                                                                                              4223442/B 08/2019
+
+NOTES: (continued)
+
+4. This package is designed to be soldered to a thermal pad on the board. For more information, see Texas Instruments literature
+   number SLUA271 (www.ti.com/lit/slua271).
+
+5. Vias are optional depending on application, refer to device data sheet. If any vias are implemented, refer to their locations shown
+   on this view. It is recommended that vias under paste be filled, plugged or tented.
+
+                                                                       www.ti.com
+RHB0032E                                                                             EXAMPLE STENCIL DESIGN
+
+                                                                                                  VQFN - 1 mm max height
+
+                                                                                                          PLASTIC QUAD FLATPACK - NO LEAD
+
+        (R0.05) TYP                 4X ( 1.49)         (0.845)
+32X (0.6)              32
+                                                                                         25
+                    1
+32X (0.25)                                                                                                      24
+
+28X (0.5)                                                                                                         (0.845)
+                                                                                 33                                            SYMM
+                                                                                                                                         (4.8)
+
+           8                                                                             17
+
+METAL
+TYP
+
+                       9                                                             16
+
+                                                SYMM
+
+                                                (4.8)
+
+                                        SOLDER PASTE EXAMPLE
+
+                                          BASED ON 0.125 mm THICK STENCIL
+
+                                                       EXPOSED PAD 33:
+                       75% PRINTED SOLDER COVERAGE BY AREA UNDER PACKAGE
+
+                                                             SCALE:20X
+
+                                                                                                                                                                  4223442/B 08/2019
+
+NOTES: (continued)
+
+6. Laser cutting apertures with trapezoidal walls and rounded corners may offer better paste release. IPC-7525 may have alternate
+  design recommendations.
+
+                                                www.ti.com
+                                 IMPORTANT NOTICE AND DISCLAIMER
+
+TI PROVIDES TECHNICAL AND RELIABILITY DATA (INCLUDING DATASHEETS), DESIGN RESOURCES (INCLUDING REFERENCE
+DESIGNS), APPLICATION OR OTHER DESIGN ADVICE, WEB TOOLS, SAFETY INFORMATION, AND OTHER RESOURCES "AS IS"
+AND WITH ALL FAULTS, AND DISCLAIMS ALL WARRANTIES, EXPRESS AND IMPLIED, INCLUDING WITHOUT LIMITATION ANY
+IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE OR NON-INFRINGEMENT OF THIRD
+PARTY INTELLECTUAL PROPERTY RIGHTS.
+
+These resources are intended for skilled developers designing with TI products. You are solely responsible for (1) selecting the appropriate
+TI products for your application, (2) designing, validating and testing your application, and (3) ensuring your application meets applicable
+standards, and any other safety, security, regulatory or other requirements.
+
+These resources are subject to change without notice. TI grants you permission to use these resources only for development of an
+application that uses the TI products described in the resource. Other reproduction and display of these resources is prohibited. No license
+is granted to any other TI intellectual property right or to any third party intellectual property right. TI disclaims responsibility for, and you fully
+indemnify TI and its representatives against any claims, damages, costs, losses, and liabilities arising out of your use of these resources.
+
+TI's products are provided subject to TI's Terms of Sale, TI's General Quality Guidelines, or other applicable terms available either on
+ti.com or provided in conjunction with such TI products. TI's provision of these resources does not expand or otherwise alter TI's applicable
+warranties or warranty disclaimers for TI products. Unless TI explicitly designates a product as custom or customer-specified, TI products
+are standard, catalog, general purpose devices.
+
+TI objects to and rejects any additional or different terms you may propose.
+
+IMPORTANT NOTICE
+
+                                                           Copyright © 2026, Texas Instruments Incorporated
+
+                                                                               Last updated 10/2025
+

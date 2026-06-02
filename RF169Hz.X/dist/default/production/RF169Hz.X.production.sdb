@@ -1,0 +1,584 @@
+[p GLOBOPT AUTOSTATIC IEEE_DBL IEEE_FLT PIC14 PIC14E ]
+[d version 1.1 ]
+[d edition pro ]
+[d chip 16F17125 ]
+[d frameptr 6 ]
+"100 C:\Users\ingek\MPLABXProjects\RF169\RF169Hz.X\main.c
+[e E8526 . `uc
+HOST_CONFIG 0
+MSSP1_DEFAULT 1
+]
+"10 C:\Program Files\Microchip\xc8\v3.00\pic\sources\c99\common\sprcadd.c
+[v ___fladd __fladd `(d  1 e 4 0 ]
+"15 C:\Program Files\Microchip\xc8\v3.00\pic\sources\c99\common\Umul16.c
+[v ___wmul __wmul `(ui  1 e 2 0 ]
+"4 C:\Program Files\Microchip\xc8\v3.00\pic\sources\c99\common\Umul8_16.c
+[v __Umul8_16 _Umul8_16 `(ui  1 e 2 0 ]
+"6 C:\Program Files\Microchip\xc8\v3.00\pic\sources\c99\pic\__eeprom.c
+[v ___eecpymem __eecpymem `(v  1 e 1 0 ]
+"39
+[v ___memcpyee __memcpyee `(v  1 e 1 0 ]
+"28 C:\Users\ingek\MPLABXProjects\RF169\RF169Hz.X\cc1120.c
+[v _CC1120_ReadReg CC1120_ReadReg `(uc  1 e 1 0 ]
+"50
+[v _CC1120_WriteReg CC1120_WriteReg `(v  1 e 1 0 ]
+"175
+[v _CC1120_Strobe CC1120_Strobe `(v  1 e 1 0 ]
+"184
+[v _CC1120_ApplyConfig CC1120_ApplyConfig `(v  1 e 1 0 ]
+"222
+[v _CC1120_WriteTXFIFO CC1120_WriteTXFIFO `(uc  1 e 1 0 ]
+"41 C:\Users\ingek\MPLABXProjects\RF169\RF169Hz.X\main.c
+[v _print_hex print_hex `(v  1 e 1 0 ]
+"53
+[v _getRandomByte getRandomByte `(uc  1 e 1 0 ]
+"63
+[v _fillRandomMessage fillRandomMessage `(v  1 e 1 0 ]
+"69
+[v _printRandomMessage printRandomMessage `(v  1 e 1 0 ]
+"90
+[v _main main `(v  1 e 1 0 ]
+"77 C:\Users\ingek\MPLABXProjects\RF169\RF169Hz.X\mcc_generated_files/spi/src/mssp1.c
+[v _SPI1_Initialize SPI1_Initialize `(v  1 e 1 0 ]
+"88
+[v _SPI1_Deinitialize SPI1_Deinitialize `(v  1 e 1 0 ]
+"97
+[v _SPI1_Open SPI1_Open `(a  1 e 1 0 ]
+"118
+[v _SPI1_Close SPI1_Close `(v  1 e 1 0 ]
+"123
+[v _SPI1_BufferExchange SPI1_BufferExchange `(v  1 e 1 0 ]
+"141
+[v _SPI1_BufferWrite SPI1_BufferWrite `(v  1 e 1 0 ]
+"158
+[v _SPI1_BufferRead SPI1_BufferRead `(v  1 e 1 0 ]
+"176
+[v _SPI1_ByteExchange SPI1_ByteExchange `(uc  1 e 1 0 ]
+"187
+[v _SPI1_ByteWrite SPI1_ByteWrite `(v  1 e 1 0 ]
+"192
+[v _SPI1_ByteRead SPI1_ByteRead `(uc  1 e 1 0 ]
+"201
+[v _SPI1_IsRxReady SPI1_IsRxReady `(a  1 e 1 0 ]
+"215
+[v _SPI1_IsTxReady SPI1_IsTxReady `(a  1 e 1 0 ]
+"39 C:\Users\ingek\MPLABXProjects\RF169\RF169Hz.X\mcc_generated_files/system/src/clock.c
+[v _CLOCK_Initialize CLOCK_Initialize `(v  1 e 1 0 ]
+"40 C:\Users\ingek\MPLABXProjects\RF169\RF169Hz.X\mcc_generated_files/system/src/interrupt.c
+[v _INTERRUPT_Initialize INTERRUPT_Initialize `(v  1 e 1 0 ]
+"59
+[v _INTERRUPT_InterruptManager INTERRUPT_InterruptManager `II(v  1 e 1 0 ]
+"81
+[v _INT_CallBack INT_CallBack `(v  1 e 1 0 ]
+"90
+[v _INT_SetInterruptHandler INT_SetInterruptHandler `(v  1 e 1 0 ]
+"94
+[v _INT_DefaultInterruptHandler INT_DefaultInterruptHandler `(v  1 e 1 0 ]
+"40 C:\Users\ingek\MPLABXProjects\RF169\RF169Hz.X\mcc_generated_files/system/src/pins.c
+[v _PIN_MANAGER_Initialize PIN_MANAGER_Initialize `(v  1 e 1 0 ]
+"114
+[v _PIN_MANAGER_IOC PIN_MANAGER_IOC `(v  1 e 1 0 ]
+"131
+[v _IO_RC3_ISR IO_RC3_ISR `(v  1 e 1 0 ]
+"146
+[v _IO_RC3_SetInterruptHandler IO_RC3_SetInterruptHandler `(v  1 e 1 0 ]
+"153
+[v _IO_RC3_DefaultInterruptHandler IO_RC3_DefaultInterruptHandler `(v  1 e 1 0 ]
+"161
+[v _IO_RC4_ISR IO_RC4_ISR `(v  1 e 1 0 ]
+"176
+[v _IO_RC4_SetInterruptHandler IO_RC4_SetInterruptHandler `(v  1 e 1 0 ]
+"183
+[v _IO_RC4_DefaultInterruptHandler IO_RC4_DefaultInterruptHandler `(v  1 e 1 0 ]
+"39 C:\Users\ingek\MPLABXProjects\RF169\RF169Hz.X\mcc_generated_files/system/src/system.c
+[v _SYSTEM_Initialize SYSTEM_Initialize `(v  1 e 1 0 ]
+"99 C:\Users\ingek\MPLABXProjects\RF169\RF169Hz.X\mcc_generated_files/uart/src/eusart1.c
+[v _EUSART1_Initialize EUSART1_Initialize `(v  1 e 1 0 ]
+"120
+[v _EUSART1_Deinitialize EUSART1_Deinitialize `(v  1 e 1 0 ]
+"141
+[v _EUSART1_TransmitEnable EUSART1_TransmitEnable `(v  1 e 1 0 ]
+"146
+[v _EUSART1_TransmitDisable EUSART1_TransmitDisable `(v  1 e 1 0 ]
+"171
+[v _EUSART1_AutoBaudSet EUSART1_AutoBaudSet `(v  1 e 1 0 ]
+"183
+[v _EUSART1_AutoBaudQuery EUSART1_AutoBaudQuery `(a  1 e 1 0 ]
+"198
+[v _EUSART1_IsRxReady EUSART1_IsRxReady `(a  1 e 1 0 ]
+"203
+[v _EUSART1_IsTxReady EUSART1_IsTxReady `(a  1 e 1 0 ]
+"208
+[v _EUSART1_IsTxDone EUSART1_IsTxDone `(a  1 e 1 0 ]
+"213
+[v _EUSART1_ErrorGet EUSART1_ErrorGet `(ui  1 e 2 0 ]
+"218
+[v _EUSART1_Read EUSART1_Read `(uc  1 e 1 0 ]
+"240
+[v _EUSART1_Write EUSART1_Write `(v  1 e 1 0 ]
+"245
+[v _EUSART1_DefaultFramingErrorCallback EUSART1_DefaultFramingErrorCallback `(v  1 s 1 EUSART1_DefaultFramingErrorCallback ]
+"250
+[v _EUSART1_DefaultOverrunErrorCallback EUSART1_DefaultOverrunErrorCallback `(v  1 s 1 EUSART1_DefaultOverrunErrorCallback ]
+"257
+[v _EUSART1_FramingErrorCallbackRegister EUSART1_FramingErrorCallbackRegister `(v  1 e 1 0 ]
+"265
+[v _EUSART1_OverrunErrorCallbackRegister EUSART1_OverrunErrorCallbackRegister `(v  1 e 1 0 ]
+[s S346 . 1 `uc 1 INTEDG 1 0 :1:0 
+`uc 1 . 1 0 :5:1 
+`uc 1 PEIE 1 0 :1:6 
+`uc 1 GIE 1 0 :1:7 
+]
+"368 C:/Program Files/Microchip/MPLABX/v6.25/packs/Microchip/PIC16F1xxxx_DFP/1.26.410/xc8\pic\include\proc/pic16f17125.h
+[u S351 . 1 `S346 1 . 1 0 ]
+[v _INTCONbits INTCONbits `VES351  1 e 1 @11 ]
+"488
+[v _TRISA TRISA `VEuc  1 e 1 @18 ]
+"533
+[v _TRISC TRISC `VEuc  1 e 1 @20 ]
+"583
+[v _LATA LATA `VEuc  1 e 1 @24 ]
+[s S939 . 1 `uc 1 LATA0 1 0 :1:0 
+`uc 1 LATA1 1 0 :1:1 
+`uc 1 LATA2 1 0 :1:2 
+`uc 1 . 1 0 :1:3 
+`uc 1 LATA4 1 0 :1:4 
+`uc 1 LATA5 1 0 :1:5 
+]
+"598
+[u S946 . 1 `S939 1 . 1 0 ]
+[v _LATAbits LATAbits `VES946  1 e 1 @24 ]
+"628
+[v _LATC LATC `VEuc  1 e 1 @26 ]
+[s S960 . 1 `uc 1 LATC0 1 0 :1:0 
+`uc 1 LATC1 1 0 :1:1 
+`uc 1 LATC2 1 0 :1:2 
+`uc 1 LATC3 1 0 :1:3 
+`uc 1 LATC4 1 0 :1:4 
+`uc 1 LATC5 1 0 :1:5 
+]
+"643
+[u S967 . 1 `S960 1 . 1 0 ]
+[v _LATCbits LATCbits `VES967  1 e 1 @26 ]
+[s S333 . 1 `uc 1 INTF 1 0 :1:0 
+`uc 1 . 1 0 :3:1 
+`uc 1 IOCIF 1 0 :1:4 
+`uc 1 TMR0IF 1 0 :1:5 
+]
+"691
+[u S338 . 1 `S333 1 . 1 0 ]
+[v _PIR0bits PIR0bits `VES338  1 e 1 @140 ]
+[s S799 . 1 `uc 1 NCO1IF 1 0 :1:0 
+`uc 1 CWG1IF 1 0 :1:1 
+`uc 1 CLC1IF 1 0 :1:2 
+`uc 1 CLC2IF 1 0 :1:3 
+`uc 1 CLC3IF 1 0 :1:4 
+`uc 1 CLC4IF 1 0 :1:5 
+`uc 1 TX1IF 1 0 :1:6 
+`uc 1 RC1IF 1 0 :1:7 
+]
+"879
+[u S808 . 1 `S799 1 . 1 0 ]
+[v _PIR4bits PIR4bits `VES808  1 e 1 @144 ]
+[s S176 . 1 `uc 1 TX2IF 1 0 :1:0 
+`uc 1 RC2IF 1 0 :1:1 
+`uc 1 SSP1IF 1 0 :1:2 
+`uc 1 BCL1IF 1 0 :1:3 
+`uc 1 SSP2IF 1 0 :1:4 
+`uc 1 BCL2IF 1 0 :1:5 
+`uc 1 CM1IF 1 0 :1:6 
+`uc 1 CM2IF 1 0 :1:7 
+]
+"941
+[u S185 . 1 `S176 1 . 1 0 ]
+[v _PIR5bits PIR5bits `VES185  1 e 1 @145 ]
+[s S369 . 1 `uc 1 INTE 1 0 :1:0 
+`uc 1 . 1 0 :3:1 
+`uc 1 IOCIE 1 0 :1:4 
+`uc 1 TMR0IE 1 0 :1:5 
+]
+"1031
+[u S374 . 1 `S369 1 . 1 0 ]
+[v _PIE0bits PIE0bits `VES374  1 e 1 @150 ]
+[s S155 . 1 `uc 1 TX2IE 1 0 :1:0 
+`uc 1 RC2IE 1 0 :1:1 
+`uc 1 SSP1IE 1 0 :1:2 
+`uc 1 BCL1IE 1 0 :1:3 
+`uc 1 SSP2IE 1 0 :1:4 
+`uc 1 BCL2IE 1 0 :1:5 
+`uc 1 CM1IE 1 0 :1:6 
+`uc 1 CM2IE 1 0 :1:7 
+]
+"1281
+[u S164 . 1 `S155 1 . 1 0 ]
+[v _PIE5bits PIE5bits `VES164  1 e 1 @155 ]
+"3172
+[v _OSCCON1 OSCCON1 `VEuc  1 e 1 @653 ]
+"3312
+[v _OSCCON3 OSCCON3 `VEuc  1 e 1 @655 ]
+"3414
+[v _OSCEN OSCEN `VEuc  1 e 1 @657 ]
+"3471
+[v _OSCTUNE OSCTUNE `VEuc  1 e 1 @658 ]
+"3529
+[v _OSCFRQ OSCFRQ `VEuc  1 e 1 @659 ]
+"3569
+[v _ACTCON ACTCON `VEuc  1 e 1 @660 ]
+"10949
+[v _RC1REG RC1REG `VEuc  1 e 1 @1804 ]
+"10969
+[v _TX1REG TX1REG `VEuc  1 e 1 @1805 ]
+"10996
+[v _SP1BRGL SP1BRGL `VEuc  1 e 1 @1806 ]
+"11016
+[v _SP1BRGH SP1BRGH `VEuc  1 e 1 @1807 ]
+"11036
+[v _RC1STA RC1STA `VEuc  1 e 1 @1808 ]
+[s S736 . 1 `uc 1 RX9D 1 0 :1:0 
+`uc 1 OERR 1 0 :1:1 
+`uc 1 FERR 1 0 :1:2 
+`uc 1 ADDEN 1 0 :1:3 
+`uc 1 CREN 1 0 :1:4 
+`uc 1 SREN 1 0 :1:5 
+`uc 1 RX9 1 0 :1:6 
+`uc 1 SPEN 1 0 :1:7 
+]
+"11053
+[u S745 . 1 `S736 1 . 1 0 ]
+[v _RC1STAbits RC1STAbits `VES745  1 e 1 @1808 ]
+"11098
+[v _TX1STA TX1STA `VEuc  1 e 1 @1809 ]
+[s S757 . 1 `uc 1 TX9D 1 0 :1:0 
+`uc 1 TRMT 1 0 :1:1 
+`uc 1 BRGH 1 0 :1:2 
+`uc 1 SENDB 1 0 :1:3 
+`uc 1 SYNC 1 0 :1:4 
+`uc 1 TXEN 1 0 :1:5 
+`uc 1 TX9 1 0 :1:6 
+`uc 1 CSRC 1 0 :1:7 
+]
+"11115
+[u S766 . 1 `S757 1 . 1 0 ]
+[v _TX1STAbits TX1STAbits `VES766  1 e 1 @1809 ]
+"11160
+[v _BAUD1CON BAUD1CON `VEuc  1 e 1 @1810 ]
+[s S778 . 1 `uc 1 ABDEN 1 0 :1:0 
+`uc 1 WUE 1 0 :1:1 
+`uc 1 . 1 0 :1:2 
+`uc 1 BRG16 1 0 :1:3 
+`uc 1 SCKP 1 0 :1:4 
+`uc 1 . 1 0 :1:5 
+`uc 1 RCIDL 1 0 :1:6 
+`uc 1 ABDOVF 1 0 :1:7 
+]
+"11177
+[u S787 . 1 `S778 1 . 1 0 ]
+[v _BAUD1CONbits BAUD1CONbits `VES787  1 e 1 @1810 ]
+"11475
+[v _SSP1BUF SSP1BUF `VEuc  1 e 1 @1932 ]
+"11495
+[v _SSP1ADD SSP1ADD `VEuc  1 e 1 @1933 ]
+"11685
+[v _SSP1STAT SSP1STAT `VEuc  1 e 1 @1935 ]
+"12049
+[v _SSP1CON1 SSP1CON1 `VEuc  1 e 1 @1936 ]
+[s S201 . 1 `uc 1 SSPM 1 0 :4:0 
+`uc 1 CKP 1 0 :1:4 
+`uc 1 SSPEN 1 0 :1:5 
+`uc 1 SSPOV 1 0 :1:6 
+`uc 1 WCOL 1 0 :1:7 
+]
+"12079
+[s S207 . 1 `uc 1 SSPM0 1 0 :1:0 
+`uc 1 SSPM1 1 0 :1:1 
+`uc 1 SSPM2 1 0 :1:2 
+`uc 1 SSPM3 1 0 :1:3 
+]
+[s S212 . 1 `uc 1 SSPM01 1 0 :1:0 
+`uc 1 SSPM11 1 0 :1:1 
+`uc 1 SSPM21 1 0 :1:2 
+`uc 1 SSPM31 1 0 :1:3 
+`uc 1 CKP1 1 0 :1:4 
+`uc 1 SSPEN1 1 0 :1:5 
+`uc 1 SSPOV1 1 0 :1:6 
+`uc 1 WCOL1 1 0 :1:7 
+]
+[u S221 . 1 `S201 1 . 1 0 `S207 1 . 1 0 `S212 1 . 1 0 ]
+[v _SSP1CON1bits SSP1CON1bits `VES221  1 e 1 @1936 ]
+"12356
+[v _SSP1CON3 SSP1CON3 `VEuc  1 e 1 @1938 ]
+"21110
+[v _RA0PPS RA0PPS `VEuc  1 e 1 @7564 ]
+"21210
+[v _RC0PPS RC0PPS `VEuc  1 e 1 @7580 ]
+"21230
+[v _RC1PPS RC1PPS `VEuc  1 e 1 @7581 ]
+"22224
+[v _RX1PPS RX1PPS `VEuc  1 e 1 @7746 ]
+"22338
+[v _SSP1CLKPPS SSP1CLKPPS `VEuc  1 e 1 @7751 ]
+"22396
+[v _SSP1DATPPS SSP1DATPPS `VEuc  1 e 1 @7752 ]
+"22612
+[v _ANSELA ANSELA `VEuc  1 e 1 @7820 ]
+"22690
+[v _WPUA WPUA `VEuc  1 e 1 @7821 ]
+"22740
+[v _ODCONA ODCONA `VEuc  1 e 1 @7822 ]
+"22785
+[v _SLRCONA SLRCONA `VEuc  1 e 1 @7823 ]
+"22835
+[v _INLVLA INLVLA `VEuc  1 e 1 @7824 ]
+"22885
+[v _IOCAP IOCAP `VEuc  1 e 1 @7825 ]
+"22935
+[v _IOCAN IOCAN `VEuc  1 e 1 @7826 ]
+"22985
+[v _IOCAF IOCAF `VEuc  1 e 1 @7827 ]
+"23035
+[v _ANSELC ANSELC `VEuc  1 e 1 @7840 ]
+"23123
+[v _WPUC WPUC `VEuc  1 e 1 @7841 ]
+"23173
+[v _ODCONC ODCONC `VEuc  1 e 1 @7842 ]
+"23223
+[v _SLRCONC SLRCONC `VEuc  1 e 1 @7843 ]
+"23273
+[v _INLVLC INLVLC `VEuc  1 e 1 @7844 ]
+"23323
+[v _IOCCP IOCCP `VEuc  1 e 1 @7845 ]
+"23373
+[v _IOCCN IOCCN `VEuc  1 e 1 @7846 ]
+"23423
+[v _IOCCF IOCCF `VEuc  1 e 1 @7847 ]
+[s S474 . 1 `uc 1 IOCCF0 1 0 :1:0 
+`uc 1 IOCCF1 1 0 :1:1 
+`uc 1 IOCCF2 1 0 :1:2 
+`uc 1 IOCCF3 1 0 :1:3 
+`uc 1 IOCCF4 1 0 :1:4 
+`uc 1 IOCCF5 1 0 :1:5 
+]
+"23438
+[u S481 . 1 `S474 1 . 1 0 ]
+[v _IOCCFbits IOCCFbits `VES481  1 e 1 @7847 ]
+[s S1057 . 3 `us 1 addr 2 0 `uc 1 value 1 2 ]
+"565 C:\Users\ingek\MPLABXProjects\RF169\RF169Hz.X\cc1120_config.c
+[v _cc1120_config cc1120_config `DC[103]S1057  1 e 309 0 ]
+"61 C:\Users\ingek\MPLABXProjects\RF169\RF169Hz.X\main.c
+[v _txBuffer txBuffer `[125]uc  1 s 125 txBuffer ]
+"38 C:\Users\ingek\MPLABXProjects\RF169\RF169Hz.X\mcc_generated_files/system/src/interrupt.c
+[v _INT_InterruptHandler INT_InterruptHandler `*.37(v  1 e 2 0 ]
+"37 C:\Users\ingek\MPLABXProjects\RF169\RF169Hz.X\mcc_generated_files/system/src/pins.c
+[v _IO_RC3_InterruptHandler IO_RC3_InterruptHandler `*.37(v  1 e 2 0 ]
+"38
+[v _IO_RC4_InterruptHandler IO_RC4_InterruptHandler `*.37(v  1 e 2 0 ]
+[s S711 . 1 `uc 1 perr 1 0 :1:0 
+`uc 1 ferr 1 0 :1:1 
+`uc 1 oerr 1 0 :1:2 
+`uc 1 reserved 1 0 :5:3 
+]
+"82 C:\Users\ingek\MPLABXProjects\RF169\RF169Hz.X\mcc_generated_files/uart/src/eusart1.c
+[u S716 . 2 `S711 1 . 1 0 `ui 1 status 2 0 ]
+[v _eusart1RxLastError eusart1RxLastError `VES716  1 s 2 eusart1RxLastError ]
+"88
+[v _EUSART1_FramingErrorHandler EUSART1_FramingErrorHandler `*.37(v  1 s 2 EUSART1_FramingErrorHandler ]
+"89
+[v _EUSART1_OverrunErrorHandler EUSART1_OverrunErrorHandler `*.37(v  1 s 2 EUSART1_OverrunErrorHandler ]
+"90 C:\Users\ingek\MPLABXProjects\RF169\RF169Hz.X\main.c
+[v _main main `(v  1 e 1 0 ]
+{
+"133
+[v main@marcState marcState `uc  1 a 1 1 ]
+"134
+[v main@marcState_prev marcState_prev `uc  1 a 1 0 ]
+"152
+} 0
+"69
+[v _printRandomMessage printRandomMessage `(v  1 e 1 0 ]
+{
+"74
+[v printRandomMessage@i i `us  1 a 2 9 ]
+"82
+} 0
+"41
+[v _print_hex print_hex `(v  1 e 1 0 ]
+{
+[v print_hex@val val `uc  1 p 1 wreg ]
+[v print_hex@val val `uc  1 p 1 wreg ]
+[v print_hex@val val `uc  1 p 1 6 ]
+"50
+} 0
+"240 C:\Users\ingek\MPLABXProjects\RF169\RF169Hz.X\mcc_generated_files/uart/src/eusart1.c
+[v _EUSART1_Write EUSART1_Write `(v  1 e 1 0 ]
+{
+[v EUSART1_Write@txData txData `uc  1 p 1 0 ]
+"243
+} 0
+"63 C:\Users\ingek\MPLABXProjects\RF169\RF169Hz.X\main.c
+[v _fillRandomMessage fillRandomMessage `(v  1 e 1 0 ]
+{
+"64
+[v fillRandomMessage@i i `us  1 a 2 8 ]
+"67
+} 0
+"53
+[v _getRandomByte getRandomByte `(uc  1 e 1 0 ]
+{
+"54
+[v getRandomByte@seed seed `us  1 s 2 seed ]
+"59
+} 0
+"39 C:\Users\ingek\MPLABXProjects\RF169\RF169Hz.X\mcc_generated_files/system/src/system.c
+[v _SYSTEM_Initialize SYSTEM_Initialize `(v  1 e 1 0 ]
+{
+"46
+} 0
+"77 C:\Users\ingek\MPLABXProjects\RF169\RF169Hz.X\mcc_generated_files/spi/src/mssp1.c
+[v _SPI1_Initialize SPI1_Initialize `(v  1 e 1 0 ]
+{
+"86
+} 0
+"40 C:\Users\ingek\MPLABXProjects\RF169\RF169Hz.X\mcc_generated_files/system/src/pins.c
+[v _PIN_MANAGER_Initialize PIN_MANAGER_Initialize `(v  1 e 1 0 ]
+{
+"112
+} 0
+"176
+[v _IO_RC4_SetInterruptHandler IO_RC4_SetInterruptHandler `(v  1 e 1 0 ]
+{
+[v IO_RC4_SetInterruptHandler@InterruptHandler InterruptHandler `*.37(v  1 p 2 0 ]
+"178
+} 0
+"146
+[v _IO_RC3_SetInterruptHandler IO_RC3_SetInterruptHandler `(v  1 e 1 0 ]
+{
+[v IO_RC3_SetInterruptHandler@InterruptHandler InterruptHandler `*.37(v  1 p 2 0 ]
+"148
+} 0
+"40 C:\Users\ingek\MPLABXProjects\RF169\RF169Hz.X\mcc_generated_files/system/src/interrupt.c
+[v _INTERRUPT_Initialize INTERRUPT_Initialize `(v  1 e 1 0 ]
+{
+"50
+} 0
+"90
+[v _INT_SetInterruptHandler INT_SetInterruptHandler `(v  1 e 1 0 ]
+{
+[v INT_SetInterruptHandler@InterruptHandler InterruptHandler `*.37(v  1 p 2 0 ]
+"92
+} 0
+"99 C:\Users\ingek\MPLABXProjects\RF169\RF169Hz.X\mcc_generated_files/uart/src/eusart1.c
+[v _EUSART1_Initialize EUSART1_Initialize `(v  1 e 1 0 ]
+{
+"118
+} 0
+"265
+[v _EUSART1_OverrunErrorCallbackRegister EUSART1_OverrunErrorCallbackRegister `(v  1 e 1 0 ]
+{
+[v EUSART1_OverrunErrorCallbackRegister@callbackHandler callbackHandler `*.37(v  1 p 2 0 ]
+"271
+} 0
+"257
+[v _EUSART1_FramingErrorCallbackRegister EUSART1_FramingErrorCallbackRegister `(v  1 e 1 0 ]
+{
+[v EUSART1_FramingErrorCallbackRegister@callbackHandler callbackHandler `*.37(v  1 p 2 0 ]
+"263
+} 0
+"39 C:\Users\ingek\MPLABXProjects\RF169\RF169Hz.X\mcc_generated_files/system/src/clock.c
+[v _CLOCK_Initialize CLOCK_Initialize `(v  1 e 1 0 ]
+{
+"58
+} 0
+"97 C:\Users\ingek\MPLABXProjects\RF169\RF169Hz.X\mcc_generated_files/spi/src/mssp1.c
+[v _SPI1_Open SPI1_Open `(a  1 e 1 0 ]
+{
+[v SPI1_Open@spiConfigIndex spiConfigIndex `uc  1 p 1 0 ]
+"116
+} 0
+"222 C:\Users\ingek\MPLABXProjects\RF169\RF169Hz.X\cc1120.c
+[v _CC1120_WriteTXFIFO CC1120_WriteTXFIFO `(uc  1 e 1 0 ]
+{
+"234
+[v CC1120_WriteTXFIFO@i i `uc  1 a 1 4 ]
+"222
+[v CC1120_WriteTXFIFO@data data `*.39DCuc  1 p 2 1 ]
+[v CC1120_WriteTXFIFO@length length `uc  1 p 1 3 ]
+"242
+} 0
+"175
+[v _CC1120_Strobe CC1120_Strobe `(v  1 e 1 0 ]
+{
+[v CC1120_Strobe@command command `uc  1 p 1 wreg ]
+[v CC1120_Strobe@command command `uc  1 p 1 wreg ]
+"177
+[v CC1120_Strobe@command command `uc  1 p 1 1 ]
+"182
+} 0
+"28
+[v _CC1120_ReadReg CC1120_ReadReg `(uc  1 e 1 0 ]
+{
+"30
+[v CC1120_ReadReg@result result `uc  1 a 1 3 ]
+"28
+[v CC1120_ReadReg@addr addr `us  1 p 2 1 ]
+"48
+} 0
+"184
+[v _CC1120_ApplyConfig CC1120_ApplyConfig `(v  1 e 1 0 ]
+{
+"186
+[v CC1120_ApplyConfig@i i `us  1 a 2 9 ]
+"191
+} 0
+"15 C:\Program Files\Microchip\xc8\v3.00\pic\sources\c99\common\Umul16.c
+[v ___wmul __wmul `(ui  1 e 2 0 ]
+{
+"17
+[v ___wmul@product product `ui  1 a 2 4 ]
+"15
+[v ___wmul@multiplier multiplier `ui  1 p 2 0 ]
+[v ___wmul@multiplicand multiplicand `ui  1 p 2 2 ]
+"53
+} 0
+"50 C:\Users\ingek\MPLABXProjects\RF169\RF169Hz.X\cc1120.c
+[v _CC1120_WriteReg CC1120_WriteReg `(v  1 e 1 0 ]
+{
+[v CC1120_WriteReg@addr addr `us  1 p 2 6 ]
+[v CC1120_WriteReg@value value `uc  1 p 1 8 ]
+"66
+} 0
+"176 C:\Users\ingek\MPLABXProjects\RF169\RF169Hz.X\mcc_generated_files/spi/src/mssp1.c
+[v _SPI1_ByteExchange SPI1_ByteExchange `(uc  1 e 1 0 ]
+{
+[v SPI1_ByteExchange@byteData byteData `uc  1 p 1 0 ]
+"185
+} 0
+"59 C:\Users\ingek\MPLABXProjects\RF169\RF169Hz.X\mcc_generated_files/system/src/interrupt.c
+[v _INTERRUPT_InterruptManager INTERRUPT_InterruptManager `II(v  1 e 1 0 ]
+{
+"70
+} 0
+"114 C:\Users\ingek\MPLABXProjects\RF169\RF169Hz.X\mcc_generated_files/system/src/pins.c
+[v _PIN_MANAGER_IOC PIN_MANAGER_IOC `(v  1 e 1 0 ]
+{
+"126
+} 0
+"161
+[v _IO_RC4_ISR IO_RC4_ISR `(v  1 e 1 0 ]
+{
+"171
+} 0
+"183
+[v _IO_RC4_DefaultInterruptHandler IO_RC4_DefaultInterruptHandler `(v  1 e 1 0 ]
+{
+"186
+} 0
+"131
+[v _IO_RC3_ISR IO_RC3_ISR `(v  1 e 1 0 ]
+{
+"141
+} 0
+"153
+[v _IO_RC3_DefaultInterruptHandler IO_RC3_DefaultInterruptHandler `(v  1 e 1 0 ]
+{
+"156
+} 0

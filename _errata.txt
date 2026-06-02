@@ -1,0 +1,329 @@
+CC112x, CC1175
+
+Silicon Errata
+
+                                                                          Literature Number: SWRZ039D
+                                                                          June 2011 ­ Revised April 2015
+                                                                       Contents
+
+1 CC112x, CC1175 Silicon Errata .............................................................................................. 3
+       1.1 VCO Calibration.............................................................................................................. 3
+               1.1.1 Description .......................................................................................................... 3
+       1.2 Suggested Workaround .................................................................................................... 3
+
+2 Known Design Exceptions to Functional Specifications ........................................................... 6
+       2.1 Advisory List .................................................................................................................. 6
+
+Revision History ........................................................................................................................... 7
+
+2  Contents                                                         SWRZ039D ­ June 2011 ­ Revised April 2015
+
+                                                                    Submit Documentation Feedback
+
+             Copyright © 2011­2015, Texas Instruments Incorporated
+                                                                                               Chapter 1
+
+                                                                                                            SWRZ039D ­ June 2011 ­ Revised April 2015
+
+                                        CC112x, CC1175 Silicon Errata
+
+1.1 VCO Calibration
+
+1.1.1 Description
+         The RF frequency is set by the on-chip inductor, a capacitor array and a varactor. There is a finite
+         possibility that the calibration fails because a non-optimum index to the capacitor array is chosen during
+         the calibration. When the calibration fails the chip will always use a too low index for the capacitor array
+         (that is, too high capacitance).
+
+1.2 Suggested Workaround
+         For the CC1120, CC1121, CC1125, and CC1175 devices with the PARTVERSION register equal to 0x21,
+         two manual calibrations must be performed as shown in the flow diagram Figure 1-1. The software
+         implementation is shown in Figure 1-2.
+         For CC1120, CC1121, CC1125, and CC1175 with the PARTVERSION register equal to 0x23, the VCO
+         calibration issue is corrected. These devices can be calibrated using one manual calibration option (using
+         SCAL), and the three automatic calibration options that are controlled by the
+         SETTLING_CFG.FS_AUTOCAL setting, which is explained in the CC112x/CC1175 User's Guide
+         (SWRU295).
+         Applications using the workaround calibration procedure required for PARTVERSION 0x21 can safely
+         continue to use the workaround procedure with PARTVERSION 0x23 or higher.
+
+SWRZ039D ­ June 2011 ­ Revised April 2015                                                         CC112x, CC1175 Silicon Errata  3
+
+Submit Documentation Feedback
+
+                                           Copyright © 2011­2015, Texas Instruments Incorporated
+Suggested Workaround                                                                                                      www.ti.com
+
+                                                       manualCalibration
+                                                              START
+
+                                                   Set VCO cap array to 0
+                                                       (FS_VCO2 = 0x00)
+
+                                            Read FS_CAL2 (VCDAC_START)
+                                              and store it in original_fs_cal2
+
+                                                               Write
+                                              FS_CAL2 = original_fs_cal2 + 2
+
+                                                  Strobe SCAL and wait for
+                                                   calibration to complete
+
+                                              Read FS_VCO2, FS_VCO4, and
+                                                 FS_CHP and store them in
+
+                                            calResults_for_vcdac_start_high
+
+                                                   Set VCO cap array to 0
+                                                       (FS_VCO2 = 0x00)
+
+                                                               Write
+                                                FS_CAL2 = original_fs_cal2
+
+                                                   Strobe SCAL and wait for
+                                                    calibration to complete
+
+                                              Read FS_VCO2, FS_VCO4, and
+                                                 FS_CHP and store them in
+
+                                             calResults_for_vcdac_start_mid
+
+   calResults_for_vcdac_start_high >                                            Yes Write back FS_VCO2, FS_VCO4,
+   calResults_for_vcdac_start_mid?                                                                 and FS_CHP from
+
+                                                                                         calResults_for_vcdac_start_high
+
+                  No
+
+   Write back FS_VCO2, FS_VCO4,
+             and FS_CHP from
+
+   calResults_for_vcdac_start_mid
+
+                                  manualCalibration
+                                           END
+
+                                  Figure 1-1. Flow Diagram
+
+4  CC112x, CC1175 Silicon Errata                                                         SWRZ039D ­ June 2011 ­ Revised April 2015
+
+                                                                                         Submit Documentation Feedback
+
+                                  Copyright © 2011­2015, Texas Instruments Incorporated
+www.ti.com                                                                                                Suggested Workaround
+
+#define     VCDAC_START_OFFSET 2
+#define
+#define     FS_VCO2_INDEX         0
+#define
+            FS_VCO4_INDEX         1
+
+            FS_CHP_INDEX          2
+
+void manualCalibration( void ) {
+
+uint8 original_fs_cal2;
+uint8 calResults_for_vcdac_start_high[ 3 ];
+uint8 calResults_for_vcdac_start_mid[ 3];
+uint8 marcstate;
+uint8 writeByte;
+
+// 1) Set VCO cap - array to 0 (FS_VCO2 = 0x00)
+writeByte = 0x00 ;
+cc112xSpiWriteReg(CC112X_FS_VCO2, &writeByte, 1);
+
+// 2) Start with high VCDAC (original VCDAC_START + 2):
+cc112xSpiReadReg(CC112X_FS_CAL2, &original_fs_cal2, 1);
+writeByte = original_fs_cal2 + VCDAC_START_OFFSET;
+cc112xSpiWriteReg(CC112X_FS_CAL2, &writeByte, 1);
+
+// 3) Calibrate and wait for calibration to be done (radio back in IDLE state)
+trxSpiCmdStrobe(SCAL);
+do {
+
+   cc112xSpiReadReg(CC112X_MARCSTATE, &marcstate, 1);
+} while (marcstate != 0x41);
+
+// 4) Read FS_VCO2, FS_VCO4 and FS_CHP register obtained with high VCDAC_START value
+cc112xSpiReadReg(CC112X_FS_VCO2, &calResults_for_vcdac_start_high[FS_VCO2_INDEX], 1);
+cc112xSpiReadReg(CC112X_FS_VCO4, &calResults_for_vcdac_start_high[FS_VCO4_INDEX], 1);
+cc112xSpiReadReg(CC112X_FS_CHP, &calResults_for_vcdac_start_high[FS_CHP_INDEX], 1);
+
+// 5) Set VCO cap - array to 0 (FS_VCO2 = 0x00)
+writeByte = 0x00 ;
+cc112xSpiWriteReg(CC112X_FS_VCO2, &writeByte, 1);
+
+// 6) Continue with mid VCDAC (original VCDAC_START):
+writeByte = original_fs_cal2;
+cc112xSpiWriteReg(CC112X_FS_CAL2, &writeByte, 1);
+
+// 7) Calibrate and wait for calibration to be done (radio back in IDLE state)
+trxSpiCmdStrobe(SCAL);
+do {
+
+   cc112xSpiReadReg(CC112X_MARCSTATE, &marcstate, 1);
+} while (marcstate != 0x41);
+
+// 8) Read FS_VCO2, FS_VCO4 and FS_CHP register obtained with mid VCDAC_START value
+
+cc112xSpiReadReg(CC112X_FS_VCO2, &calResults_for_vcdac_start_mid[FS_VCO2_INDEX],1);
+cc112xSpiReadReg(CC112X_FS_VCO4, &calResults_for_vcdac_start_mid[FS_VCO4_INDEX],1);
+cc112xSpiReadReg(CC112X_FS_CHP, &calResults_for_vcdac_start_mid[FS_CHP_INDEX], 1);
+
+   // 9) Write back highest FS_VCO2 and corresponding FS_VCO and FS_CHP result
+   if (calResults_for_vcdac_start_high[FS_VCO2_INDEX] > calResults_for_vcdac_start_mid[FS_VCO2_INDEX]) {
+
+       writeByte = calResults_for_vcdac_start_high[FS_VCO2_INDEX];
+       cc112xSpiWriteReg(CC112X_FS_VCO2, &writeByte, 1);
+       writeByte = calResults_for_vcdac_start_high[FS_VCO4_INDEX];
+       cc112xSpiWriteReg(CC112X_FS_VCO4, &writeByte, 1);
+       writeByte = calResults_for_vcdac_start_high[FS_CHP_INDEX];
+       cc112xSpiWriteReg(CC112X_FS_CHP, &writeByte, 1);
+   }
+   else {
+       writeByte = calResults_for_vcdac_start_mid[FS_VCO2_INDEX];
+       cc112xSpiWriteReg(CC112X_FS_VCO2, &writeByte, 1);
+       write Byte = calResults_for_vcdac_start_mid[FS_VCO4_INDEX];
+       cc112xSpiWriteReg(CC112X_FS_VCO4, &writeByte, 1);
+       writeByte = calResults_for_vcdac_start_mid[FS_CHP_INDEX];
+       cc112xSpiWriteReg(CC112X_FS_CHP, &writeByte,1);
+   }
+}
+
+                                             Figure 1-2. Software Implementation
+
+SWRZ039D ­ June 2011 ­ Revised April 2015                                                         CC112x, CC1175 Silicon Errata  5
+
+Submit Documentation Feedback
+
+                                           Copyright © 2011­2015, Texas Instruments Incorporated
+                                                                                            Chapter 2
+
+                                                                                                     SWRZ039D ­ June 2011 ­ Revised April 2015
+
+   Known Design Exceptions to Functional Specifications
+
+2.1 Advisory List
+
+                   Extra Bit Transmitted for Sync Mode Configuration 6 and 7
+
+Description:       When sync mode configuration 6 or 7 (SYNC_CFG0.SYNC_MODE = 110b or 111b) are
+Workaround(s):     used in TX mode the radio transmits 17 bits instead of 16. For both sync modes,
+                   SYNC23_16[0] is sent as the MSB of the sync word.
+
+                   SYNC_MODE = 110b: [SYNC23_16[0]:SYNC31_24:SYNC23_16]
+
+                   SYNC_MODE = 111b: [SYNC23_16[0]:SYNC15_8:SYNC7_0]
+
+                   In RX, the radio search for a 16-bit sync word [SYNC31_24:SYNC23_16] or
+                   [SYNC15_8:SYNC7_0].
+
+                   SYNC_MODE = 101b can be used on the TX side to transmit a 16-bit sync word.
+                   [SYNC15_8:SYNC7_0] will then be sent.
+
+6  Known Design Exceptions to Functional Specifications                   SWRZ039D ­ June 2011 ­ Revised April 2015
+
+                                                                          Submit Documentation Feedback
+
+                   Copyright © 2011­2015, Texas Instruments Incorporated
+www.ti.com                                                                                        Revision History
+
+               Revision            Date    Revision History
+              SWRZ039          2011-06-29
+             SWRZ039A          2012-04-30                                                   Description
+             SWRZ039B          2013-12-05       Initial release
+             SWRZ039C          2014-01-06       Added CC1125 and CC1175
+             SWRZ039D                           Added issue related to transmitting a 16 bits sync word
+                               2015-04-23       Added note that VCO calibration bug is fixed on PARTVERSION 0x23
+                                                Added note that the VCO calibration workaround for PARTVERSION 0x21
+                                                can also be used for PARTVERSION 0x23
+
+SWRZ039D ­ June 2011 ­ Revised April 2015                                                         Revision History   7
+
+Submit Documentation Feedback
+
+                                           Copyright © 2011­2015, Texas Instruments Incorporated
+                                                      IMPORTANT NOTICE
+
+Texas Instruments Incorporated and its subsidiaries (TI) reserve the right to make corrections, enhancements, improvements and other
+changes to its semiconductor products and services per JESD46, latest issue, and to discontinue any product or service per JESD48, latest
+issue. Buyers should obtain the latest relevant information before placing orders and should verify that such information is current and
+complete. All semiconductor products (also referred to herein as "components") are sold subject to TI's terms and conditions of sale
+supplied at the time of order acknowledgment.
+
+TI warrants performance of its components to the specifications applicable at the time of sale, in accordance with the warranty in TI's terms
+and conditions of sale of semiconductor products. Testing and other quality control techniques are used to the extent TI deems necessary
+to support this warranty. Except where mandated by applicable law, testing of all parameters of each component is not necessarily
+performed.
+
+TI assumes no liability for applications assistance or the design of Buyers' products. Buyers are responsible for their products and
+applications using TI components. To minimize the risks associated with Buyers' products and applications, Buyers should provide
+adequate design and operating safeguards.
+
+TI does not warrant or represent that any license, either express or implied, is granted under any patent right, copyright, mask work right, or
+other intellectual property right relating to any combination, machine, or process in which TI components or services are used. Information
+published by TI regarding third-party products or services does not constitute a license to use such products or services or a warranty or
+endorsement thereof. Use of such information may require a license from a third party under the patents or other intellectual property of the
+third party, or a license from TI under the patents or other intellectual property of TI.
+
+Reproduction of significant portions of TI information in TI data books or data sheets is permissible only if reproduction is without alteration
+and is accompanied by all associated warranties, conditions, limitations, and notices. TI is not responsible or liable for such altered
+documentation. Information of third parties may be subject to additional restrictions.
+
+Resale of TI components or services with statements different from or beyond the parameters stated by TI for that component or service
+voids all express and any implied warranties for the associated TI component or service and is an unfair and deceptive business practice.
+TI is not responsible or liable for any such statements.
+
+Buyer acknowledges and agrees that it is solely responsible for compliance with all legal, regulatory and safety-related requirements
+concerning its products, and any use of TI components in its applications, notwithstanding any applications-related information or support
+that may be provided by TI. Buyer represents and agrees that it has all the necessary expertise to create and implement safeguards which
+anticipate dangerous consequences of failures, monitor failures and their consequences, lessen the likelihood of failures that might cause
+harm and take appropriate remedial actions. Buyer will fully indemnify TI and its representatives against any damages arising out of the use
+of any TI components in safety-critical applications.
+
+In some cases, TI components may be promoted specifically to facilitate safety-related applications. With such components, TI's goal is to
+help enable customers to design and create their own end-product solutions that meet applicable functional safety standards and
+requirements. Nonetheless, such components are subject to these terms.
+
+No TI components are authorized for use in FDA Class III (or similar life-critical medical equipment) unless authorized officers of the parties
+have executed a special agreement specifically governing such use.
+
+Only those TI components which TI has specifically designated as military grade or "enhanced plastic" are designed and intended for use in
+military/aerospace applications or environments. Buyer acknowledges and agrees that any military or aerospace use of TI components
+which have not been so designated is solely at the Buyer's risk, and that Buyer is solely responsible for compliance with all legal and
+regulatory requirements in connection with such use.
+
+TI has specifically designated certain components as meeting ISO/TS16949 requirements, mainly for automotive use. In any case of use of
+non-designated products, TI will not be responsible for any failure to meet ISO/TS16949.
+
+Products                                              Applications
+Audio
+Amplifiers                    www.ti.com/audio        Automotive and Transportation  www.ti.com/automotive
+Data Converters                                                                      www.ti.com/communications
+DLP® Products                 amplifier.ti.com        Communications and Telecom     www.ti.com/computers
+DSP                                                                                  www.ti.com/consumer-apps
+Clocks and Timers             dataconverter.ti.com    Computers and Peripherals      www.ti.com/energy
+Interface                                                                            www.ti.com/industrial
+Logic                         www.dlp.com             Consumer Electronics           www.ti.com/medical
+Power Mgmt                                                                           www.ti.com/security
+Microcontrollers              dsp.ti.com              Energy and Lighting            www.ti.com/space-avionics-defense
+RFID                                                                                 www.ti.com/video
+OMAP Applications Processors  www.ti.com/clocks       Industrial
+Wireless Connectivity                                                                e2e.ti.com
+                              interface.ti.com        Medical
+
+                              logic.ti.com            Security
+
+                              power.ti.com            Space, Avionics and Defense
+
+                              microcontroller.ti.com  Video and Imaging
+
+                              www.ti-rfid.com
+
+                              www.ti.com/omap         TI E2E Community
+
+                              www.ti.com/wirelessconnectivity
+
+Mailing Address: Texas Instruments, Post Office Box 655303, Dallas, Texas 75265
+                     Copyright © 2015, Texas Instruments Incorporated
+
