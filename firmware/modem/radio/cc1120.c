@@ -248,6 +248,10 @@ void cc1120_flush_rx(void)
 {
     cc1120_set_idle();
     cc1120_strobe_sfrx();
+    /* Re-enter RX after flushing — otherwise the chip is left in IDLE
+     * and the next packet is never heard. This is the difference between
+     * "drop one bad packet" and "the receiver goes silent forever". */
+    cc1120_strobe_srx();
 }
 
 void cc1120_flush_tx(void)
@@ -270,52 +274,46 @@ void cc1120_flush_tx(void)
 
 /* Standard registers (addr 0x00..0x2E). */
 static const uint8_t cc1120_std_regs_[][2] = {
-    { CC1120_IOCFG3,         0x30u },     /* unused, hi-Z */
-    { CC1120_IOCFG2,         0x30u },     /* unused, hi-Z */
-    { CC1120_IOCFG1,         0x30u },     /* unused, hi-Z */
-    { CC1120_IOCFG0,         0x06u },     /* GDO0 = PKT_SYNC_RXTX */
-    { CC1120_SYNC3,          0x93u },
-    { CC1120_SYNC2,          0x0Bu },
-    { CC1120_SYNC1,          0x51u },
-    { CC1120_SYNC0,          0xDEu },
-    { CC1120_SYNC_CFG1,      0x0Bu },
-    { CC1120_SYNC_CFG0,      0x17u },
+    { CC1120_IOCFG3,         0xB0u },
+    { CC1120_IOCFG2,         0x06u },
+    { CC1120_IOCFG1,         0xB0u },
+    { CC1120_IOCFG0,         0x06u },     /* PKT_SYNC_RXTX (override SmartRF 0x40,
+                                           * INT0 expects active-high sync) */
+    { CC1120_SYNC3,          0x55u },
+    { CC1120_SYNC2,          0x55u },
+    { CC1120_SYNC1,          0x7Au },
+    { CC1120_SYNC0,          0x0Eu },
+    { CC1120_SYNC_CFG1,      0x08u },
+    { CC1120_SYNC_CFG0,      0x0Bu },
     { CC1120_DEVIATION_M,    0x48u },
-    { CC1120_MODCFG_DEV_E,   0x05u },     /* 2-FSK + GFSK shaping */
-    { CC1120_DCFILT_CFG,     0x1Cu },
-    { CC1120_PREAMBLE_CFG1,  0x18u },     /* 4-byte preamble */
-    { CC1120_PREAMBLE_CFG0,  0x2Au },
-    { CC1120_FREQ_IF_CFG,    0x40u },     /* SmartRF default for 169 MHz narrowband */
-    { CC1120_IQIC,           0xC6u },
-    { CC1120_CHAN_BW,        0x08u },     /* 100 kHz RX BW */
-    { CC1120_MDMCFG1,        0x46u },
+    { CC1120_MODCFG_DEV_E,   0x0Bu },     /* MOD_FORMAT=001 (2-GFSK), DEV_E=3 */
+    { CC1120_DCFILT_CFG,     0x15u },
+    { CC1120_PREAMBLE_CFG1,  0x18u },
+    { CC1120_FREQ_IF_CFG,    0x3Au },
+    { CC1120_IQIC,           0x00u },
+    { CC1120_CHAN_BW,        0x02u },
     { CC1120_MDMCFG0,        0x05u },
-    { CC1120_SYMBOL_RATE2,   0x84u },     /* 4.8 ksps */
-    { CC1120_SYMBOL_RATE1,   0x7Au },
-    { CC1120_SYMBOL_RATE0,   0xE1u },
-    { CC1120_AGC_REF,        0x27u },
-    { CC1120_AGC_CS_THR,     0xF1u },
-    { CC1120_AGC_GAIN_ADJUST,0x00u },
-    { CC1120_AGC_CFG3,       0x91u },
-    { CC1120_AGC_CFG2,       0x20u },
+    { CC1120_SYMBOL_RATE2,   0x63u },     /* SmartRF only emits SYMBOL_RATE2;
+                                           * SYMBOL_RATE1/0 stay at reset */
+    { CC1120_AGC_REF,        0x3Cu },
+    { CC1120_AGC_CS_THR,     0xEFu },
     { CC1120_AGC_CFG1,       0xA9u },
-    { CC1120_AGC_CFG0,       0xCFu },
+    { CC1120_AGC_CFG0,       0xC0u },
     { CC1120_FIFO_CFG,       0x00u },
-    { CC1120_DEV_ADDR,       0x00u },
-    { CC1120_SETTLING_CFG,   0x0Bu },     /* FSREG_TIME=3 (max), no auto-cal */
+    { CC1120_SETTLING_CFG,   0x0Bu },     /* FSREG_TIME=3 (max). Kept from prior */
     { CC1120_FS_CFG,         0x1Au },     /* LO_DIV=20, 164..192 MHz band */
-    { CC1120_WOR_CFG1,       0x08u },
-    { CC1120_WOR_CFG0,       0x21u },
-    { CC1120_WOR_EVENT0_MSB, 0x00u },
-    { CC1120_WOR_EVENT0_LSB, 0x00u },
-    { CC1120_PKT_CFG2,       0x04u },     /* CCA disabled */
-    { CC1120_PKT_CFG1,       0x05u },     /* APPEND_STATUS, CRC enabled */
+    { CC1120_PKT_CFG2,       0x04u },     /* CCA disabled (kept) */
+    { CC1120_PKT_CFG1,       0x05u },     /* APPEND_STATUS + CRC (kept) */
     { CC1120_PKT_CFG0,       0x20u },     /* variable length */
-    { CC1120_RFEND_CFG1,     0x0Fu },     /* TX -> RX after packet */
-    { CC1120_RFEND_CFG0,     0x00u },
-    { CC1120_PA_CFG2,        0x7Fu },
-    { CC1120_PA_CFG1,        0x56u },
-    { CC1120_PA_CFG0,        0x7Cu },
+    /* RFEND_CFG1 = 0x1F:
+     *   bits 1:0 = 11 -> TXOFF_MODE = RX  (after TX, return to RX)
+     *   bits 4:3 = 11 -> RXOFF_MODE = RX  (after RX, stay in RX)
+     * The previous 0x0F had RXOFF_MODE = 01 = FSTXON, which made the
+     * chip silently stop listening after each received packet — leaving
+     * the receiver dead after the very first beacon. */
+    { CC1120_RFEND_CFG1,     0x1Fu },
+    { CC1120_PA_CFG2,        0x7Du },
+    { CC1120_PA_CFG0,        0x7Eu },
     { CC1120_PKT_LEN,        0xFFu },
 };
 
@@ -323,48 +321,30 @@ static const uint8_t cc1120_std_regs_[][2] = {
  * SmartRF Studio export for 169.4 MHz / 4.8 kbps 2-GFSK / 32 MHz XOSC. */
 static const uint8_t cc1120_ext_regs_[][2] = {
     { CC1120_IF_MIX_CFG,     0x00u },
-    { CC1120_FREQOFF_CFG,    0x22u },
+    { CC1120_FREQOFF_CFG,    0x22u },     /* FOC enabled, BW/4 capture (kept) */
+    { CC1120_TOC_CFG,        0x0Au },
 
-    /* FREQ for 169.4 MHz, LO_DIV=20, XOSC=32 MHz.
-     * FREQ = 169.4e6 * 20 * 65536 / 32e6 = 0x69E466. */
+    /* FREQ ~169.4 MHz, LO_DIV=20, XOSC=32 MHz (SmartRF export). */
     { CC1120_FREQ2,          0x69u },
-    { CC1120_FREQ1,          0xE4u },
-    { CC1120_FREQ0,          0x66u },
-
-    /* IF/ADC config */
-    { CC1120_IF_ADC2,        0x02u },
-    { CC1120_IF_ADC1,        0xA6u },
-    { CC1120_IF_ADC0,        0x04u },
+    { CC1120_FREQ1,          0xDFu },
+    { CC1120_FREQ0,          0xFFu },
 
     /* Frequency Synthesizer */
     { CC1120_FS_DIG1,        0x00u },
     { CC1120_FS_DIG0,        0x5Fu },
-    { CC1120_FS_CAL3,        0x00u },
-    { CC1120_FS_CAL2,        0x20u },
     { CC1120_FS_CAL1,        0x40u },
     { CC1120_FS_CAL0,        0x0Eu },
-    { CC1120_FS_CHP,         0x28u },
     { CC1120_FS_DIVTWO,      0x03u },
-    { CC1120_FS_DSM1,        0x00u },
     { CC1120_FS_DSM0,        0x33u },
-    { CC1120_FS_DVC1,        0xFFu },
     { CC1120_FS_DVC0,        0x17u },
-    { CC1120_FS_LBI,         0x00u },
     { CC1120_FS_PFD,         0x50u },
     { CC1120_FS_PRE,         0x6Eu },
     { CC1120_FS_REG_DIV_CML, 0x14u },
     { CC1120_FS_SPARE,       0xACu },
-    { CC1120_FS_VCO4,        0x14u },
-    { CC1120_FS_VCO3,        0x00u },
-    { CC1120_FS_VCO2,        0x00u },
-    { CC1120_FS_VCO1,        0x00u },
     { CC1120_FS_VCO0,        0xB4u },
 
     /* Crystal oscillator trim */
     { CC1120_XOSC5,          0x0Eu },
-    { CC1120_XOSC4,          0xA0u },
-    { CC1120_XOSC3,          0x03u },
-    { CC1120_XOSC2,          0x04u },
     { CC1120_XOSC1,          0x03u },
 };
 
@@ -521,8 +501,24 @@ bool cc1120_init_no_scal(void)
 
 /* ===== Radio event subsystem ==============================================*/
 
+/* DBG counters — peek via cc1120_dbg_get_counters(). */
+static volatile uint16_t dbg_int0_count_     = 0u;
+static volatile uint16_t dbg_rx_done_count_  = 0u;
+static volatile uint16_t dbg_tx_done_count_  = 0u;
+static volatile uint16_t dbg_rx_ovf_count_   = 0u;
+
+void cc1120_dbg_get_counters(uint16_t *int0, uint16_t *rxd,
+                             uint16_t *txd,  uint16_t *ovf)
+{
+    *int0 = dbg_int0_count_;
+    *rxd  = dbg_rx_done_count_;
+    *txd  = dbg_tx_done_count_;
+    *ovf  = dbg_rx_ovf_count_;
+}
+
 void isr_cc1120_gdo(void)
 {
+    dbg_int0_count_++;
     radio_event_flags_ |= RADIO_EVT_GDO_EDGE;
     gdo_irq_pending_    = true;
 }
@@ -541,6 +537,7 @@ void cc1120_process_events(void)
     marc = cc1120_get_marcstate();
 
     if (marc == MARCSTATE_RX_FIFO_ERR) {
+        dbg_rx_ovf_count_++;
         radio_event_flags_ |= RADIO_EVT_RX_OVERFLOW;
         return;
     }
@@ -549,8 +546,10 @@ void cc1120_process_events(void)
         return;
     }
     if (cc1120_get_num_rxbytes() > 0) {
+        dbg_rx_done_count_++;
         radio_event_flags_ |= RADIO_EVT_RX_DONE;
     } else {
+        dbg_tx_done_count_++;
         radio_event_flags_ |= RADIO_EVT_TX_DONE;
     }
 }

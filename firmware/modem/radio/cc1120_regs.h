@@ -99,6 +99,9 @@
 #define CC1120_FREQOFF_CFG      0x01
 #define CC1120_TOC_CFG          0x02
 #define CC1120_EXT_CTRL         0x07
+#define CC1120_FREQOFF1         0x0A   /* signed 16-bit freq offset MSB    */
+#define CC1120_FREQOFF0         0x0B   /* signed 16-bit freq offset LSB    *
+                                        * 1 LSB = fXOSC/2^18 ≈ 122 Hz @ 32MHz */
 #define CC1120_FREQ2            0x0C
 #define CC1120_FREQ1            0x0D
 #define CC1120_FREQ0            0x0E

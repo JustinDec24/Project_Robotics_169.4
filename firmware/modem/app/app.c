@@ -10,9 +10,11 @@
  *===========================================================================*/
 #include "app.h"
 #include "../config.h"
+#include "../board/board.h"
 #include "../drivers/timer.h"
 #include "../drivers/uart.h"
 #include "../radio/cc1120.h"
+#include "../radio/cc1120_regs.h"
 #include "../radio/radio_link.h"
 
 #if MODEM_ROLE == MODEM_ROLE_REMOTE
@@ -218,6 +220,43 @@ static void remote_handle_pc_frame(const uart_frame_t *frame, uint32_t now_ms)
 static void remote_periodic(uint32_t now_ms)
 {
     uint8_t payload[2];
+    static uint32_t last_marc_log_ms_ = 0u;
+    static uint8_t  rssi_max_signed_ = 0x80u;
+    static uint8_t  gdo_high_seen_   = 0u;
+
+    {
+        uint8_t r = cc1120_ext_reg_read(CC1120_RSSI1);
+        if (r != 0x80u) {
+            if ((int8_t)r > (int8_t)rssi_max_signed_) rssi_max_signed_ = r;
+        }
+        if (cc1120_gdo0_read() != 0u) gdo_high_seen_ = 1u;
+    }
+
+    if ((now_ms - last_marc_log_ms_) >= 2000u) {
+        char buf[96];
+        static const char hex[] = "0123456789ABCDEF";
+        uint16_t att, bad_len, trunc, bad_crc, bad_net, bad_dst, ok;
+        uint8_t last_len;
+        radio_link_dbg_get_counters(&att, &bad_len, &trunc, &bad_crc,
+                                    &bad_net, &bad_dst, &ok, &last_len);
+        uint8_t k = 0u;
+        #define BYTE(v) do { buf[k++] = hex[((v) >> 4) & 0xFu]; buf[k++] = hex[(v) & 0xFu]; } while (0)
+        buf[k++] = 'a'; buf[k++] = 't'; buf[k++] = 't'; buf[k++] = '='; BYTE(att);
+        buf[k++] = ' '; buf[k++] = 'L'; buf[k++] = 'E'; buf[k++] = 'N'; buf[k++] = '='; BYTE(last_len);
+        buf[k++] = ' '; buf[k++] = 'b'; buf[k++] = 'L'; buf[k++] = '='; BYTE(bad_len);
+        buf[k++] = ' '; buf[k++] = 't'; buf[k++] = 'r'; buf[k++] = '='; BYTE(trunc);
+        buf[k++] = ' '; buf[k++] = 'b'; buf[k++] = 'C'; buf[k++] = '='; BYTE(bad_crc);
+        buf[k++] = ' '; buf[k++] = 'b'; buf[k++] = 'N'; buf[k++] = '='; BYTE(bad_net);
+        buf[k++] = ' '; buf[k++] = 'b'; buf[k++] = 'D'; buf[k++] = '='; BYTE(bad_dst);
+        buf[k++] = ' '; buf[k++] = 'O'; buf[k++] = 'K'; buf[k++] = '='; BYTE(ok);
+        #undef BYTE
+        buf[k] = '\0';
+        protocol_send_log(buf);
+
+        rssi_max_signed_ = 0x80u;
+        gdo_high_seen_   = 0u;
+        last_marc_log_ms_ = now_ms;
+    }
 
     /* Try to flush any coalesced DATA over the ARQ. */
     if (state_ == APP_REMOTE_SESSION) {
@@ -524,7 +563,13 @@ void app_task(void)
             break;
         }
         if ((now_ms - last_beacon_ms_) >= BEACON_INTERVAL_MS) {
-            (void)app_send_rf(RF_BROADCAST_ID, RF_TYPE_BEACON, NULL, 0u);
+            bool tx_ok = app_send_rf(RF_BROADCAST_ID, RF_TYPE_BEACON, NULL, 0u);
+            /* DBG: LED only toggles if radio_link_send confirmed TX (i.e.
+             * the bytes really hit the TX FIFO and STX was strobed). If
+             * the LED stops blinking, app_send_rf is returning false. */
+            if (tx_ok) {
+                led_toggle();
+            }
             last_beacon_ms_ = now_ms;
         }
         break;

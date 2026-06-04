@@ -459,12 +459,16 @@ void board_init(void)
     PIN_CC_GDO_TRIS  = 1;       /* input */
 
     /* --- INT0 from RB1 (CC1120 GDO0).
-     * On the PIC18F26Q10 the edge select bit is INTCONbits.INT0EDG.
-     * 1 = rising edge — IOCFG0 is configured as PKT_SYNC_RXTX (active high
-     * during a packet); rising edge marks "frame in progress", we then
-     * disambiguate RX vs TX in cc1120_process_events() at end-of-frame. */
+     * IOCFG0 = PKT_SYNC_RXTX: GDO0 goes HIGH on sync detect (start of
+     * packet) and LOW at end of packet. We want to fire ONCE per packet,
+     * at the end, when the RX FIFO actually contains the bytes — that
+     * way cc1120_process_events() reads num_rxbytes > 0 and correctly
+     * classifies the event as RX_DONE. So configure INT0 for the FALLING
+     * edge. The first version used rising edge, which fired at sync-
+     * detect time when the FIFO was still empty -> packets were silently
+     * mis-classified as TX_DONE and dropped. */
     INT0PPS  = PPS_RB1;
-    INTCONbits.INT0EDG = 1;
+    INTCONbits.INT0EDG = 0;     /* 0 = falling edge */
     board_cc1120_int_enable();
 
     /* --- Other unused pins as inputs (TRIS=1) is the reset default. */

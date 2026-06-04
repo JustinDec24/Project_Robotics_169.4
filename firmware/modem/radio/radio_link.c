@@ -138,6 +138,31 @@ bool radio_link_send(uint8_t dst_id, uint8_t type,
 
 /* ===== Receive ============================================================*/
 
+/* DBG counters — exposed via radio_link_dbg_get_counters(). */
+static volatile uint16_t dbg_rx_attempt_     = 0u;
+static volatile uint16_t dbg_rx_bad_len_     = 0u;
+static volatile uint16_t dbg_rx_truncated_   = 0u;
+static volatile uint16_t dbg_rx_bad_crc_     = 0u;
+static volatile uint16_t dbg_rx_bad_net_     = 0u;
+static volatile uint16_t dbg_rx_bad_dst_     = 0u;
+static volatile uint16_t dbg_rx_ok_          = 0u;
+static volatile uint8_t  dbg_last_body_len_  = 0u;
+
+void radio_link_dbg_get_counters(uint16_t *att, uint16_t *bad_len,
+                                 uint16_t *trunc, uint16_t *bad_crc,
+                                 uint16_t *bad_net, uint16_t *bad_dst,
+                                 uint16_t *ok, uint8_t *last_len)
+{
+    *att = dbg_rx_attempt_;
+    *bad_len = dbg_rx_bad_len_;
+    *trunc = dbg_rx_truncated_;
+    *bad_crc = dbg_rx_bad_crc_;
+    *bad_net = dbg_rx_bad_net_;
+    *bad_dst = dbg_rx_bad_dst_;
+    *ok = dbg_rx_ok_;
+    *last_len = dbg_last_body_len_;
+}
+
 bool radio_link_receive(rf_packet_t *pkt)
 {
     uint8_t body_len;
@@ -151,19 +176,20 @@ bool radio_link_receive(rf_packet_t *pkt)
         return false;
     }
 
+    dbg_rx_attempt_++;
+
     cc1120_read_rxfifo(raw, 1);
     body_len = raw[0];
+    dbg_last_body_len_ = body_len;
     if (body_len < RF_HEADER_SIZE || body_len > RF_MAX_BODY_SIZE) {
+        dbg_rx_bad_len_++;
         cc1120_flush_rx();
         return false;
     }
 
-    /* Wait for the rest of the packet + 2 status bytes to be in the FIFO.
-     * In practice the FIFO is filled by the modem before the GDO end-of-pkt
-     * edge fires, so this is just a guard against races. */
     need = (uint8_t)(body_len + RF_APPEND_STATUS_BYTES);
     if (cc1120_get_num_rxbytes() < need) {
-        /* Truncated/partial packet: discard and resync. */
+        dbg_rx_truncated_++;
         cc1120_flush_rx();
         return false;
     }
@@ -180,23 +206,25 @@ bool radio_link_receive(rf_packet_t *pkt)
         pkt->payload[i] = raw[6u + i];
     }
 
-    /* Append-status bytes are right after the payload (which ended at index
-     * 1 + body_len - 1). */
     status_idx = (uint8_t)(1u + body_len);
     pkt->rssi   = (int8_t)raw[status_idx];
     pkt->lqi    = (uint8_t)(raw[status_idx + 1u] & 0x7Fu);
     pkt->crc_ok = (raw[status_idx + 1u] & 0x80u) != 0u;
 
     if (!pkt->crc_ok) {
+        dbg_rx_bad_crc_++;
         return false;
     }
     if (pkt->net_id != net_id_) {
+        dbg_rx_bad_net_++;
         return false;
     }
     if ((pkt->dst_id != local_id_) && (pkt->dst_id != RF_BROADCAST_ID)) {
+        dbg_rx_bad_dst_++;
         return false;
     }
 
+    dbg_rx_ok_++;
     radio_link_metrics_note_rssi(pkt->rssi);
     return true;
 }

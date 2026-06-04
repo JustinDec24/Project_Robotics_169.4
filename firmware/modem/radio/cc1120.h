@@ -80,4 +80,8 @@ uint8_t cc1120_events_get_and_clear(uint8_t mask);
 /* Clear every pending event flag. */
 void    cc1120_events_clear_all(void);
 
+/* DBG: counters for INT0 firings and event classifications. */
+void    cc1120_dbg_get_counters(uint16_t *int0, uint16_t *rxd,
+                                uint16_t *txd,  uint16_t *ovf);
+
 #endif /* CC1120_H */

@@ -104,4 +104,10 @@ void    radio_link_metrics_set_rtt(uint16_t rtt_ms);
 void    radio_link_metrics_get(link_metrics_t *out);
 void    radio_link_metrics_note_rssi(int8_t rssi);
 
+/* DBG: per-failure-mode counters for radio_link_receive(). */
+void    radio_link_dbg_get_counters(uint16_t *att, uint16_t *bad_len,
+                                    uint16_t *trunc, uint16_t *bad_crc,
+                                    uint16_t *bad_net, uint16_t *bad_dst,
+                                    uint16_t *ok, uint8_t *last_len);
+
 #endif /* RADIO_LINK_H */

@@ -1,22 +1,13 @@
 /*============================================================================
- * main.c — PHASE 6: application layer wired in.
+ * main.c — application firmware entry point.
  *
- * Phase 5 confirmed that the carte PC can emit on 169.4 MHz. Now we hand
- * control to the application state machine in app/app.c so that the host
- * console (host_tools/modem_console) can drive the modem over the framed
- * UART protocol:
+ * Both REMOTE (PC card) and ROBOT roles run the same code: a tiny shim
+ * that brings up the board peripherals (board / uart / spi / timer /
+ * interrupts) then hands off to the application state machine in
+ * app/app.c. Role is selected at compile time via MODEM_ROLE.
  *
- *   PC --(UART framing)--> Remote modem --(RF)--> Robot modem --(UART)--> SBC
- *
- * What this main does, regardless of role:
- *   1. board_init / uart_init / spi_init / timer_init / interrupts on
- *   2. small settle delay
- *   3. app_init() — clears state, prepares the role
- *   4. app_task() in a tight loop — drains UART, drains RF FIFO, runs
- *      periodics (beacons / connect timeout / ARQ tick / stats push)
- *
- * The CC1120 itself is initialised by app_task() the first time it runs
- * (state APP_INIT calls cc1120_init_minimal then radio_link_init).
+ * Air interface: 169.4 MHz, 2-GFSK, 4.8 kbps, 5 kHz dev, 100 kHz RX BW,
+ * +14 dBm TX, 32-bit sync (SmartRF Studio config).
  *===========================================================================*/
 #include <xc.h>
 #include "config.h"
@@ -24,8 +15,10 @@
 #include "drivers/uart.h"
 #include "drivers/spi.h"
 #include "drivers/timer.h"
-#include "app/app.h"
+#include "radio/cc1120.h"
+#include "radio/cc1120_regs.h"
 
+#include "app/app.h"
 #if MODEM_ROLE == MODEM_ROLE_REMOTE
 #include "protocol/protocol.h"
 #endif
@@ -37,20 +30,11 @@ int main(void)
     spi_init();
     timer_init();
     global_int_enable();
-
-    /* Small wait so the FT231 USB-CDC link (or miniuart3 module on the
-     * robot side) is up before we start spitting log frames. */
     Delay_ms(200);
 
 #if MODEM_ROLE == MODEM_ROLE_REMOTE
-    /* Send an unframed banner first so the user can see something
-     * immediately when they open the console. The framed "REMOTE modem
-     * ready" log will follow as soon as app_task() transitions to
-     * APP_RF_READY. */
     {
-        const char *banner =
-            "\r\n[remote] modem firmware booting (Phase 6 — app layer)\r\n";
-        const char *p = banner;
+        const char *p = "\r\n[remote] modem firmware booting\r\n";
         while (*p) uart_write((uint8_t)*p++);
     }
 #endif
@@ -59,6 +43,5 @@ int main(void)
     for (;;) {
         app_task();
     }
-
     return 0;
 }
