@@ -26,6 +26,7 @@
 #define UART_MSG_CONNECTED       0x82u
 #define UART_MSG_DISCONNECTED    0x83u
 #define UART_MSG_STATS           0x84u
+#define UART_MSG_TX_ACK          0x85u   /* fired once per ACKed DATA_TX     */
 #define UART_MSG_DATA_RX         0x90u
 #define UART_MSG_LOG             0x9Fu
 
@@ -67,5 +68,6 @@ void protocol_send_disconnected(uint8_t reason);
 void protocol_send_stats(uint8_t rssi_avg, uint8_t per_pct, uint16_t rtt_ms);
 void protocol_send_data_rx(const uint8_t *data, uint8_t len);
 void protocol_send_log(const char *text);
+void protocol_send_tx_ack(void);
 
 #endif /* PROTOCOL_H */

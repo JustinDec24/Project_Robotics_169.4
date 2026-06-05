@@ -61,8 +61,8 @@
 
 /* ---- Timing (ms) ---------------------------------------------------------*/
 #define BEACON_INTERVAL_MS          500u
-#define CONNECT_TIMEOUT_MS          800u
-#define LINK_LOST_TIMEOUT_MS        3000u
+#define CONNECT_TIMEOUT_MS          1500u  /* 3 beacon periods, more forgiving */
+#define LINK_LOST_TIMEOUT_MS        6000u  /* 12 beacon periods worth */
 #define STATS_PUSH_INTERVAL_MS      500u
 #define RTT_PING_INTERVAL_MS        1000u
 
@@ -74,8 +74,8 @@
 /* T_ACK_MS must cover: TX air time + chip turnaround + RX air time + jitter.
  * At 4.8 kbps GFSK, a 50-byte DATA + 8-byte ACK round trip is ~110 ms.
  * At 38.4 kbps it drops to ~15 ms. We size for the slow case with margin. */
-#define ARQ_ACK_TIMEOUT_MS          200u
-#define ARQ_MAX_RETRIES             3u
+#define ARQ_ACK_TIMEOUT_MS          300u  /* a bit more headroom than 200 */
+#define ARQ_MAX_RETRIES             6u    /* doubled — fewer ARQ_FAILED disconnects */
 #define ARQ_BACKOFF_MAX_MS          16u   /* random jitter before retransmit */
 
 /* ---- Scan cache ----------------------------------------------------------*/

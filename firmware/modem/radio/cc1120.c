@@ -300,18 +300,38 @@ static const uint8_t cc1120_std_regs_[][2] = {
     { CC1120_AGC_CFG1,       0xA9u },
     { CC1120_AGC_CFG0,       0xC0u },
     { CC1120_FIFO_CFG,       0x00u },
-    { CC1120_SETTLING_CFG,   0x0Bu },     /* FSREG_TIME=3 (max). Kept from prior */
+    /* SETTLING_CFG = 0x1B:
+     *   bits 5:4 FS_AUTOCAL = 01 -> re-cal on every IDLE -> TX/RX transition
+     *   bits 3:2 LOCK_TIME    = 10 (medium)
+     *   bits 1:0 FSREG_TIME   = 11 (max — needed on this PCB for clean cal)
+     * Auto-cal costs ~700 us per transition but keeps the synth lock fresh,
+     * which dramatically improves RX reliability over time and temperature.
+     * The previous 0x0B (FS_AUTOCAL=00, never) needed a manual TX cycle to
+     * "wake up" the receiver, which is why scan only worked after attempting
+     * a connect. */
+    { CC1120_SETTLING_CFG,   0x1Bu },
     { CC1120_FS_CFG,         0x1Au },     /* LO_DIV=20, 164..192 MHz band */
     { CC1120_PKT_CFG2,       0x04u },     /* CCA disabled (kept) */
     { CC1120_PKT_CFG1,       0x05u },     /* APPEND_STATUS + CRC (kept) */
     { CC1120_PKT_CFG0,       0x20u },     /* variable length */
-    /* RFEND_CFG1 = 0x1F:
-     *   bits 1:0 = 11 -> TXOFF_MODE = RX  (after TX, return to RX)
-     *   bits 4:3 = 11 -> RXOFF_MODE = RX  (after RX, stay in RX)
-     * The previous 0x0F had RXOFF_MODE = 01 = FSTXON, which made the
-     * chip silently stop listening after each received packet — leaving
-     * the receiver dead after the very first beacon. */
-    { CC1120_RFEND_CFG1,     0x1Fu },
+    /* RFEND_CFG1 = 0x3F (per CC112X user guide SWRU295E p.87):
+     *   bits 5:4 = 11 -> RXOFF_MODE = RX     (after RX, stay in RX)
+     *   bits 3:1 = 111 -> RX_TIME = max      (sync-search timeout off)
+     *   bit  0   = 1   -> RX_TIME_QUAL       (stay in RX if PQT/CS too)
+     * Previous value 0x1F was wrong: it actually set RXOFF_MODE = 01 =
+     * FSTXON because the register layout in the old comment block had
+     * the bit ranges shifted. Anything other than 11 here makes the
+     * chip stop listening after each received packet — the receiver
+     * was only kept alive by the aggressive defensive SRX in IDLE_SCAN.
+     *
+     * RFEND_CFG0 = 0x30 (same source, p.88):
+     *   bits 5:4 = 11 -> TXOFF_MODE = RX     (after TX, return to RX)
+     * Previously RFEND_CFG0 was never written, so TXOFF_MODE defaulted
+     * to 00 = IDLE — every TX left the chip deaf until something else
+     * (the old cc1120_set_rx() after TX_DONE, or the defensive) kicked
+     * it back. */
+    { CC1120_RFEND_CFG1,     0x3Fu },
+    { CC1120_RFEND_CFG0,     0x30u },
     { CC1120_PA_CFG2,        0x7Du },
     { CC1120_PA_CFG0,        0x7Eu },
     { CC1120_PKT_LEN,        0xFFu },
@@ -384,8 +404,16 @@ bool cc1120_init_minimal(void)
     }
     Delay_ms(10);
 
-    /* Single SCAL strobe — works with the SmartRF Studio config now that
-     * SETTLING_CFG has FSREG_TIME = 3 (max regulator settling time). */
+    /* Single SCAL strobe — the SmartRF Studio config plus our
+     * SETTLING_CFG (FSREG_TIME=3) gives a stable cal on this silicon.
+     * NOTE: we deliberately do NOT call cc1120_manual_cal() here. That
+     * routine implements the TI errata SWRZ039D "pick the higher
+     * FS_VCO2" workaround for PARTVERSION 0x21 silicon. On 0x23+ the
+     * chip's own cal converges correctly and "always pick higher" can
+     * select a worse value — empirically that regressed our scan-at-
+     * boot path (robots invisible until a connect TX forced an
+     * FS_AUTOCAL refresh). Keep the single SCAL until/unless a chip
+     * with the documented bug shows up. */
     cc1120_strobe(CC1120_SCAL);
     Delay_ms(10);
 
@@ -501,24 +529,8 @@ bool cc1120_init_no_scal(void)
 
 /* ===== Radio event subsystem ==============================================*/
 
-/* DBG counters — peek via cc1120_dbg_get_counters(). */
-static volatile uint16_t dbg_int0_count_     = 0u;
-static volatile uint16_t dbg_rx_done_count_  = 0u;
-static volatile uint16_t dbg_tx_done_count_  = 0u;
-static volatile uint16_t dbg_rx_ovf_count_   = 0u;
-
-void cc1120_dbg_get_counters(uint16_t *int0, uint16_t *rxd,
-                             uint16_t *txd,  uint16_t *ovf)
-{
-    *int0 = dbg_int0_count_;
-    *rxd  = dbg_rx_done_count_;
-    *txd  = dbg_tx_done_count_;
-    *ovf  = dbg_rx_ovf_count_;
-}
-
 void isr_cc1120_gdo(void)
 {
-    dbg_int0_count_++;
     radio_event_flags_ |= RADIO_EVT_GDO_EDGE;
     gdo_irq_pending_    = true;
 }
@@ -532,12 +544,12 @@ void cc1120_process_events(void)
     }
     gdo_irq_pending_ = false;
 
-    /* IOCFG0 = PKT_SYNC_RXTX: a falling edge marks "end of packet" in RX or
-     * TX. We disambiguate by inspecting MARCSTATE and FIFO occupancy. */
+    /* IOCFG0 = PKT_SYNC_RXTX: with INT0 wired for the falling edge, we
+     * are called at end-of-packet (in RX) or end-of-TX. Disambiguate by
+     * MARCSTATE and FIFO occupancy. */
     marc = cc1120_get_marcstate();
 
     if (marc == MARCSTATE_RX_FIFO_ERR) {
-        dbg_rx_ovf_count_++;
         radio_event_flags_ |= RADIO_EVT_RX_OVERFLOW;
         return;
     }
@@ -546,10 +558,8 @@ void cc1120_process_events(void)
         return;
     }
     if (cc1120_get_num_rxbytes() > 0) {
-        dbg_rx_done_count_++;
         radio_event_flags_ |= RADIO_EVT_RX_DONE;
     } else {
-        dbg_tx_done_count_++;
         radio_event_flags_ |= RADIO_EVT_TX_DONE;
     }
 }

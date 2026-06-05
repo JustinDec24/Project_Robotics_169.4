@@ -80,6 +80,11 @@ bool    radio_link_arq_send(uint8_t dst_id, const uint8_t *payload,
 /* True while a DATA frame is awaiting ACK. */
 bool    radio_link_arq_pending(void);
 
+/* One-shot edge event: returns true exactly once after each DATA ACK is
+ * received from the peer, then resets to false. The app layer polls this
+ * to surface "send succeeded" notifications to the host. */
+bool    radio_link_arq_take_ack_event(void);
+
 /* Feed an incoming RX packet into the ARQ layer.
  *   - If pkt is a DATA_ACK matching our pending seq -> clears pending.
  *   - If pkt is a fresh DATA -> caller must deliver, ARQ auto-sends ACK.
@@ -103,11 +108,5 @@ uint8_t radio_link_data_buf_count(void);
 void    radio_link_metrics_set_rtt(uint16_t rtt_ms);
 void    radio_link_metrics_get(link_metrics_t *out);
 void    radio_link_metrics_note_rssi(int8_t rssi);
-
-/* DBG: per-failure-mode counters for radio_link_receive(). */
-void    radio_link_dbg_get_counters(uint16_t *att, uint16_t *bad_len,
-                                    uint16_t *trunc, uint16_t *bad_crc,
-                                    uint16_t *bad_net, uint16_t *bad_dst,
-                                    uint16_t *ok, uint8_t *last_len);
 
 #endif /* RADIO_LINK_H */

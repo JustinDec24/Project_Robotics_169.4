@@ -43,6 +43,11 @@ static uint32_t data_tx_ok_;        /* DATA frames acked                     */
 static uint32_t data_tx_failed_;    /* DATA frames given up after retries    */
 static uint16_t rtt_ms_;
 
+/* ---- One-shot event flag, set when the most recent ARQ DATA was ACKed.
+ * The app layer polls this once per remote_periodic() tick and surfaces
+ * it to the host as a UART_MSG_TX_ACK frame. */
+static volatile bool arq_tx_ack_event_ = false;
+
 /* ---- Tiny LCG for backoff jitter ----------------------------------------*/
 static uint16_t rand_state_;
 static uint8_t rand_byte_(void)
@@ -138,31 +143,6 @@ bool radio_link_send(uint8_t dst_id, uint8_t type,
 
 /* ===== Receive ============================================================*/
 
-/* DBG counters — exposed via radio_link_dbg_get_counters(). */
-static volatile uint16_t dbg_rx_attempt_     = 0u;
-static volatile uint16_t dbg_rx_bad_len_     = 0u;
-static volatile uint16_t dbg_rx_truncated_   = 0u;
-static volatile uint16_t dbg_rx_bad_crc_     = 0u;
-static volatile uint16_t dbg_rx_bad_net_     = 0u;
-static volatile uint16_t dbg_rx_bad_dst_     = 0u;
-static volatile uint16_t dbg_rx_ok_          = 0u;
-static volatile uint8_t  dbg_last_body_len_  = 0u;
-
-void radio_link_dbg_get_counters(uint16_t *att, uint16_t *bad_len,
-                                 uint16_t *trunc, uint16_t *bad_crc,
-                                 uint16_t *bad_net, uint16_t *bad_dst,
-                                 uint16_t *ok, uint8_t *last_len)
-{
-    *att = dbg_rx_attempt_;
-    *bad_len = dbg_rx_bad_len_;
-    *trunc = dbg_rx_truncated_;
-    *bad_crc = dbg_rx_bad_crc_;
-    *bad_net = dbg_rx_bad_net_;
-    *bad_dst = dbg_rx_bad_dst_;
-    *ok = dbg_rx_ok_;
-    *last_len = dbg_last_body_len_;
-}
-
 bool radio_link_receive(rf_packet_t *pkt)
 {
     uint8_t body_len;
@@ -176,20 +156,15 @@ bool radio_link_receive(rf_packet_t *pkt)
         return false;
     }
 
-    dbg_rx_attempt_++;
-
     cc1120_read_rxfifo(raw, 1);
     body_len = raw[0];
-    dbg_last_body_len_ = body_len;
     if (body_len < RF_HEADER_SIZE || body_len > RF_MAX_BODY_SIZE) {
-        dbg_rx_bad_len_++;
         cc1120_flush_rx();
         return false;
     }
 
     need = (uint8_t)(body_len + RF_APPEND_STATUS_BYTES);
     if (cc1120_get_num_rxbytes() < need) {
-        dbg_rx_truncated_++;
         cc1120_flush_rx();
         return false;
     }
@@ -212,19 +187,15 @@ bool radio_link_receive(rf_packet_t *pkt)
     pkt->crc_ok = (raw[status_idx + 1u] & 0x80u) != 0u;
 
     if (!pkt->crc_ok) {
-        dbg_rx_bad_crc_++;
         return false;
     }
     if (pkt->net_id != net_id_) {
-        dbg_rx_bad_net_++;
         return false;
     }
     if ((pkt->dst_id != local_id_) && (pkt->dst_id != RF_BROADCAST_ID)) {
-        dbg_rx_bad_dst_++;
         return false;
     }
 
-    dbg_rx_ok_++;
     radio_link_metrics_note_rssi(pkt->rssi);
     return true;
 }
@@ -268,6 +239,15 @@ bool radio_link_arq_pending(void)
     return arq_tx_.pending;
 }
 
+bool radio_link_arq_take_ack_event(void)
+{
+    if (arq_tx_ack_event_) {
+        arq_tx_ack_event_ = false;
+        return true;
+    }
+    return false;
+}
+
 rx_data_action_t radio_link_arq_handle_rx(const rf_packet_t *pkt, uint32_t now_ms)
 {
     (void)now_ms;
@@ -275,7 +255,8 @@ rx_data_action_t radio_link_arq_handle_rx(const rf_packet_t *pkt, uint32_t now_m
     if (pkt->type == RF_TYPE_DATA_ACK) {
         if (arq_tx_.pending && pkt->seq == arq_tx_.seq &&
             pkt->src_id == arq_tx_.dst_id) {
-            arq_tx_.pending = false;
+            arq_tx_.pending     = false;
+            arq_tx_ack_event_   = true;
             data_tx_ok_++;
         }
         return RX_DATA_NOT_DATA;

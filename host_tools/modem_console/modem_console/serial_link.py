@@ -112,6 +112,14 @@ class SerialLink:
                 kind="error",
                 message=f"cannot open {self.port_name}: {exc}"))
             return False
+        # Discard whatever the USB-UART adapter accumulated while the host
+        # was not listening — without this, a DISCONNECTED frame from a
+        # previous session reappears at boot and confuses the UI.
+        try:
+            ser.reset_input_buffer()
+            ser.reset_output_buffer()
+        except Exception:
+            pass
         with self._ser_lock:
             self._ser = ser
         self.events.put(LinkEvent(

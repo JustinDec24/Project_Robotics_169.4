@@ -149,3 +149,8 @@ void protocol_send_log(const char *text)
     }
     protocol_send_frame(UART_MSG_LOG, (const uint8_t *)text, len);
 }
+
+void protocol_send_tx_ack(void)
+{
+    protocol_send_frame(UART_MSG_TX_ACK, NULL, 0);
+}

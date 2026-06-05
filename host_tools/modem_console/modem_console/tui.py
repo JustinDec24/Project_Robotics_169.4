@@ -187,8 +187,8 @@ class ModemConsoleApp(App):
                 yield DiscoveryPanel()
             yield EventLog()
         yield Input(placeholder=("> command  "
-                                 "(help / scan / connect <id> / "
-                                 "disconnect / send <text> / stats / clear / quit)"),
+                                 "(help / connect <id> / disconnect / "
+                                 "send <text> / clear / quit)"),
                     id="cmd-input")
         yield Footer()
 
@@ -227,11 +227,8 @@ class ModemConsoleApp(App):
         args = parts[1:]
         handler = {
             "help":       self._cmd_help,
-            "scan":       self._cmd_scan_start,
-            "scanstop":   self._cmd_scan_stop,
             "connect":    self._cmd_connect,
             "disconnect": self._cmd_disconnect,
-            "stats":      self._cmd_stats,
             "send":       self._cmd_send,
             "clear":      self._cmd_clear,
             "quit":       self._cmd_quit,
@@ -247,24 +244,13 @@ class ModemConsoleApp(App):
 
     def _cmd_help(self, _args) -> None:
         for line in [
-            "scan              - start scanning for robots",
-            "scanstop          - stop scanning",
             "connect <id>      - connect to robot id (e.g. 0x10 or 16)",
             "disconnect        - drop the current connection",
-            "stats             - request link statistics",
             'send "<text>"     - send a data frame to the connected robot',
             "clear             - clear the event log",
             "quit              - exit the console (Ctrl+C also works)",
         ]:
             self._log_event("HELP", line, "magenta")
-
-    def _cmd_scan_start(self, _args) -> None:
-        self.link.send_frame(MsgType.SCAN_START)
-        self._log_event("TX", "SCAN_START", "blue")
-
-    def _cmd_scan_stop(self, _args) -> None:
-        self.link.send_frame(MsgType.SCAN_STOP)
-        self._log_event("TX", "SCAN_STOP", "blue")
 
     def _cmd_connect(self, args) -> None:
         if not args:
@@ -278,10 +264,6 @@ class ModemConsoleApp(App):
     def _cmd_disconnect(self, _args) -> None:
         self.link.send_frame(MsgType.DISCONNECT)
         self._log_event("TX", "DISCONNECT", "blue")
-
-    def _cmd_stats(self, _args) -> None:
-        self.link.send_frame(MsgType.GET_STATS)
-        self._log_event("TX", "GET_STATS", "blue")
 
     def _cmd_send(self, args) -> None:
         if not args:
@@ -338,14 +320,20 @@ class ModemConsoleApp(App):
         if t == MsgType.SCAN_RESULT and len(p) >= 3:
             robot_id, rssi_raw, age = p[0], p[1], p[2]
             rssi = _decode_rssi(rssi_raw)
+            first_time = robot_id not in self.discovered
             self.discovered[robot_id] = DiscoveredRobot(
                 robot_id=robot_id, rssi_dbm=rssi, age_100ms=age,
                 first_seen=time.time())
             self.query_one(DiscoveryPanel).refresh_robots(self.discovered)
-            self._log_event("RX",
-                            f"SCAN_RESULT id=0x{robot_id:02X} rssi={rssi} dBm "
-                            f"age={age/10:.1f}s",
-                            "cyan")
+            # Beacons arrive every 500 ms — 2 SCAN_RESULTs per second.
+            # The Discovered-robots panel already shows the live state, so
+            # only log to the Events feed when we first hear from a robot.
+            # Every subsequent beacon updates the panel silently.
+            if first_time:
+                self._log_event("RX",
+                                f"discovered robot 0x{robot_id:02X} "
+                                f"rssi={rssi} dBm",
+                                "cyan")
         elif t == MsgType.CONNECTED and len(p) >= 1:
             self.state.connected = True
             self.state.robot_id = p[0]
@@ -361,6 +349,8 @@ class ModemConsoleApp(App):
                             f"DISCONNECTED reason=0x{p[0]:02X}",
                             "yellow")
         elif t == MsgType.STATS and len(p) >= 4:
+            # The Connection status panel already shows RSSI / PER / RTT live —
+            # don't echo every 500 ms STATS frame to the Events log.
             rssi_avg = _decode_rssi(p[0])
             per = p[1]
             rtt = p[2] | (p[3] << 8)
@@ -368,9 +358,11 @@ class ModemConsoleApp(App):
                                          per_pct=per,
                                          rtt_ms=rtt)
             self._refresh_status()
-            self._log_event("RX",
-                            f"STATS rssi={rssi_avg} dBm  per={per}%  rtt={rtt} ms",
-                            "cyan")
+        elif t == MsgType.TX_ACK:
+            # Robot acknowledged our last DATA frame — surface a clean
+            # "delivered" confirmation so the user knows the send went
+            # through. No payload, the event itself is the signal.
+            self._log_event("ACK", "robot received last send", "bold green")
         elif t == MsgType.DATA_RX:
             self.state.rx_count += 1
             self.state.last_rx_at = time.time()
@@ -403,9 +395,17 @@ class ModemConsoleApp(App):
 
 # ---- pure helpers --------------------------------------------------------
 
+#: dBm offset applied to the chip's raw RSSI to get an absolute power
+#: reading. From TI document TIDU512 (CC1120 169 MHz reference design):
+#: "RSSI Offset of CC1120 = -102 dBm". Used both for instantaneous RSSI
+#: in SCAN_RESULT and for the smoothed average in STATS.
+CC1120_RSSI_OFFSET_DBM = -102
+
+
 def _decode_rssi(raw: int) -> int:
-    """CC1120 RSSI is reported as a signed 8-bit two's complement byte."""
-    return raw - 256 if raw & 0x80 else raw
+    """Convert the CC1120's signed-8 raw RSSI to an absolute dBm value."""
+    signed = raw - 256 if raw & 0x80 else raw
+    return signed + CC1120_RSSI_OFFSET_DBM
 
 
 def _safe_ascii(data: bytes) -> str:

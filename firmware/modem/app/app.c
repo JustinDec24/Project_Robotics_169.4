@@ -220,47 +220,30 @@ static void remote_handle_pc_frame(const uart_frame_t *frame, uint32_t now_ms)
 static void remote_periodic(uint32_t now_ms)
 {
     uint8_t payload[2];
-    static uint32_t last_marc_log_ms_ = 0u;
-    static uint8_t  rssi_max_signed_ = 0x80u;
-    static uint8_t  gdo_high_seen_   = 0u;
+    static uint32_t last_rx_kick_ms_ = 0u;
 
-    {
-        uint8_t r = cc1120_ext_reg_read(CC1120_RSSI1);
-        if (r != 0x80u) {
-            if ((int8_t)r > (int8_t)rssi_max_signed_) rssi_max_signed_ = r;
+    /* Defensive SRX — only re-arms RX if the chip has truly fallen
+     * back to IDLE. With RFEND_CFG0.TXOFF_MODE = RX and
+     * RFEND_CFG1.RXOFF_MODE = RX, the chip stays in RX through every
+     * normal TX/RX cycle on its own, so this should almost never fire.
+     * It exists as a safety net for the rare error path that leaves
+     * the chip stuck (FIFO recovery, etc.). */
+    if ((now_ms - last_rx_kick_ms_) >= 500u) {
+        if (cc1120_get_marcstate() == MARCSTATE_IDLE) {
+            cc1120_set_rx();
         }
-        if (cc1120_gdo0_read() != 0u) gdo_high_seen_ = 1u;
-    }
-
-    if ((now_ms - last_marc_log_ms_) >= 2000u) {
-        char buf[96];
-        static const char hex[] = "0123456789ABCDEF";
-        uint16_t att, bad_len, trunc, bad_crc, bad_net, bad_dst, ok;
-        uint8_t last_len;
-        radio_link_dbg_get_counters(&att, &bad_len, &trunc, &bad_crc,
-                                    &bad_net, &bad_dst, &ok, &last_len);
-        uint8_t k = 0u;
-        #define BYTE(v) do { buf[k++] = hex[((v) >> 4) & 0xFu]; buf[k++] = hex[(v) & 0xFu]; } while (0)
-        buf[k++] = 'a'; buf[k++] = 't'; buf[k++] = 't'; buf[k++] = '='; BYTE(att);
-        buf[k++] = ' '; buf[k++] = 'L'; buf[k++] = 'E'; buf[k++] = 'N'; buf[k++] = '='; BYTE(last_len);
-        buf[k++] = ' '; buf[k++] = 'b'; buf[k++] = 'L'; buf[k++] = '='; BYTE(bad_len);
-        buf[k++] = ' '; buf[k++] = 't'; buf[k++] = 'r'; buf[k++] = '='; BYTE(trunc);
-        buf[k++] = ' '; buf[k++] = 'b'; buf[k++] = 'C'; buf[k++] = '='; BYTE(bad_crc);
-        buf[k++] = ' '; buf[k++] = 'b'; buf[k++] = 'N'; buf[k++] = '='; BYTE(bad_net);
-        buf[k++] = ' '; buf[k++] = 'b'; buf[k++] = 'D'; buf[k++] = '='; BYTE(bad_dst);
-        buf[k++] = ' '; buf[k++] = 'O'; buf[k++] = 'K'; buf[k++] = '='; BYTE(ok);
-        #undef BYTE
-        buf[k] = '\0';
-        protocol_send_log(buf);
-
-        rssi_max_signed_ = 0x80u;
-        gdo_high_seen_   = 0u;
-        last_marc_log_ms_ = now_ms;
+        last_rx_kick_ms_ = now_ms;
     }
 
     /* Try to flush any coalesced DATA over the ARQ. */
     if (state_ == APP_REMOTE_SESSION) {
         app_try_flush_data(connected_robot_id_, now_ms);
+    }
+
+    /* Surface DATA ACKs as TX_ACK frames so the host can show a
+     * "command delivered" confirmation after each successful send. */
+    if (radio_link_arq_take_ack_event()) {
+        protocol_send_tx_ack();
     }
 
     /* ARQ tick — handles ACK timeout / retransmit / give-up. */
@@ -319,6 +302,12 @@ static void remote_consume_rf(const rf_packet_t *pkt, uint32_t now_ms)
 
     if (pkt->type == RF_TYPE_BEACON) {
         remote_handle_beacon(pkt, now_ms);
+        /* Beacons from the connected robot are also a keep-alive: every
+         * 500 ms beacon prevents the LINK_LOST watchdog from firing even
+         * if our RTT ping or DATA exchange happens to be stalled. */
+        if (state_ == APP_REMOTE_SESSION && pkt->src_id == connected_robot_id_) {
+            last_robot_rx_ms_ = now_ms;
+        }
         return;
     }
 
@@ -456,11 +445,15 @@ static void app_consume_rf(uint32_t now_ms)
         set_recovery_state(APP_TX_ERROR_RECOVER);
         return;
     }
-    if ((evt & RADIO_EVT_TX_DONE) != 0u) {
-        /* RFEND_CFG1 already auto-RXes after TX, but force it in case of
-         * spurious states. */
-        cc1120_set_rx();
-    }
+    /* DO NOT strobe SRX after TX_DONE. RFEND_CFG1 = 0x1F has
+     * TXOFF_MODE = RX, so the chip automatically transitions
+     * TX -> cal -> settle -> RX with FS_AUTOCAL refreshing the
+     * synth lock. Strobing SRX during that transition interrupts
+     * the auto-cal and the chip enters RX with a partial cal —
+     * subsequent beacons fail to demodulate. At high RSSI this
+     * shows up as sporadic 6 s LINK_TIMEOUTs that don't correlate
+     * with distance. The passive defensive in remote_periodic
+     * still recovers if the chip ever truly falls back to IDLE. */
     if ((evt & RADIO_EVT_RX_DONE) == 0u) {
         return;
     }
@@ -563,11 +556,7 @@ void app_task(void)
             break;
         }
         if ((now_ms - last_beacon_ms_) >= BEACON_INTERVAL_MS) {
-            bool tx_ok = app_send_rf(RF_BROADCAST_ID, RF_TYPE_BEACON, NULL, 0u);
-            /* DBG: LED only toggles if radio_link_send confirmed TX (i.e.
-             * the bytes really hit the TX FIFO and STX was strobed). If
-             * the LED stops blinking, app_send_rf is returning false. */
-            if (tx_ok) {
+            if (app_send_rf(RF_BROADCAST_ID, RF_TYPE_BEACON, NULL, 0u)) {
                 led_toggle();
             }
             last_beacon_ms_ = now_ms;

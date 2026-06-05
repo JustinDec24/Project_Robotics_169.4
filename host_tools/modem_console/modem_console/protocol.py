@@ -38,6 +38,7 @@ class MsgType(IntEnum):
     CONNECTED    = 0x82
     DISCONNECTED = 0x83
     STATS        = 0x84
+    TX_ACK       = 0x85
     DATA_RX      = 0x90
     LOG          = 0x9F
 
