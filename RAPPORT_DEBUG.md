@@ -610,3 +610,53 @@ Commit `6f57978` : *"Fix RFEND_CFG bit layout, drop debug instrumentation, clean
 ---
 
 *Dernière mise à jour : 2026-06-05 — Liaison RF stable bout en bout, RFEND_CFG bit layout corrigé.*
+
+---
+
+## Phase 12 — Mode passthrough (shell-bridge transparent)
+
+### Objectif
+Démontrer que la liaison RF peut servir de **câble série transparent à distance** : un terminal PuTTY côté PC pilote interagissant avec un getty Linux côté robot, à travers 169.4 MHz.
+
+### Implémentation
+- Nouveau message UART hôte → REMOTE : `UART_MSG_PASSTHROUGH` (0x06)
+- Nouvel état firmware : `APP_REMOTE_PASSTHROUGH`
+- En passthrough :
+  - Le décodeur de frame UART est court-circuité (bytes UART → DATA buffer en direct)
+  - Les DATA reçus en RF sont écrits brut sur l'UART hôte
+  - Aucun message framé (STATS, TX_ACK, DISCONNECTED, SCAN_RESULT) n'est émis
+- TUI : nouvelle commande `passthrough` qui envoie le switch + affiche les instructions
+
+### Sticky reconnect
+Une fois en passthrough, la TUI est fermée donc l'utilisateur ne peut plus rien envoyer si la liaison drop. Le firmware retente automatiquement `CONNECT_REQ` toutes les 1 s jusqu'à ce que le robot réponde. Bannières `*** link lost, reconnecting... ***` et `*** reconnected ***` écrites directement sur l'UART (donc visibles dans PuTTY).
+
+### Robustification du keep-alive (au passage)
+
+Deux bugs latents qui causaient des `DISCONNECT 0x03` sporadiques même à -77 dBm :
+
+1. **Pong perdu = liaison morte** : le ping RTT avait un guard `!rtt_ping_pending_`. Un seul PONG perdu et le flag restait `true` à jamais → plus aucun ping → LINK_TIMEOUT à 6 s. Fix : suppression du guard, on fire un ping sur chaque intervalle quoi qu'il arrive.
+
+2. **Robot silencieux en CONNECTED** : le robot n'émettait plus de beacons une fois connecté. Le REMOTE n'avait que les PONG (1 Hz) comme keep-alive. Fix : le robot continue de beacon toutes les 500 ms même en CONNECTED → 12 chances de keep-alive par fenêtre 6 s au lieu de 6.
+
+### Bug curieux causé par le fix beacon-en-CONNECTED
+
+Une fois le robot beacon-ant en CONNECTED, l'utilisateur a vu PuTTY afficher `"PuTTY PuTTY PuTTY..."` en boucle, sans rien taper. Cause :
+- `remote_handle_beacon` émettait un `UART_MSG_SCAN_RESULT` framé sur l'UART hôte à chaque beacon, sans filtrer par état
+- En passthrough, les bytes framés arrivaient dans PuTTY comme du binaire
+- Le CRC du SCAN_RESULT tombait parfois sur `0x05` (ENQ)
+- PuTTY répondait avec son **answerback** par défaut (la chaîne `"PuTTY\r\n"`)
+- Cette réponse traversait la liaison RF et revenait → boucle visuelle
+
+Fix : SCAN_RESULT framé n'est émis qu'en état `APP_REMOTE_IDLE_SCAN`. En CONNECTING/SESSION/PASSTHROUGH, le beacon met juste à jour le cache + watchdog sans output UART.
+
+### Résultat
+- Liaison stable indéfiniment à -77 dBm en passthrough
+- Latence ~150 ms par keystroke (acceptable pour un shell)
+- Reconnect automatique en ~7-8 s si la liaison drop pour de vrai
+- Démonstration : login + commandes shell + nano sur un PC distant via 169.4 MHz
+
+Commit `640c90d` : *"Add passthrough mode: raw shell-bridge over the RF link"*
+
+---
+
+*Dernière mise à jour : 2026-06-05 — Mode passthrough opérationnel, liaison stable indéfiniment.*

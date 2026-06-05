@@ -230,6 +230,66 @@ Maintenant la chip reste en RX par hardware. Le défensif software peut être en
 
 ---
 
+## 4.7 Mode passthrough — bridge UART transparent (Phase 12)
+
+### Motivation
+Une fois la liaison RF stabilisée, l'objectif suivant a été de démontrer qu'on pouvait l'utiliser comme un **câble série transparent à distance**, c'est-à-dire qu'un terminal sur le PC pilote puisse interagir avec un shell Linux tournant sur un PC côté robot, à travers les 169.4 MHz.
+
+### Architecture du mode passthrough
+
+```
+[PC pilote]                                                          [PC robot]
+   |                                                                       |
+   | PuTTY (raw)            REMOTE                  ROBOT      PuTTY/getty |
+   |   ─raw bytes─>  [framing skipped]   ─RF DATA─>  [transparent]  ─>  shell
+   |                                                                       |
+   | <─raw bytes─    [framing skipped]   <─RF DATA─  [transparent]  <─  echo
+```
+
+Quand la TUI envoie la nouvelle commande `passthrough` (UART_MSG = 0x06), le firmware REMOTE bascule dans l'état `APP_REMOTE_PASSTHROUGH` :
+- Le décodeur de frame UART hôte est court-circuité : tous les octets reçus sur l'UART sont poussés directement dans le buffer de coalescing DATA → envoyés tels quels en RF avec ARQ
+- Les paquets DATA reçus en RF sont écrits **bruts** sur l'UART hôte (sans encapsulation framée)
+- Les messages framés normalement émis (STATS push 2 Hz, TX_ACK, DISCONNECTED, SCAN_RESULT) sont **supprimés** pour ne pas polluer la sortie shell
+
+Le robot, lui, n'a aucune logique passthrough — il est **déjà transparent par design** depuis le début (UART RX → DATA buffer, DATA RX → UART TX). Aucune modification firmware côté robot pour le passthrough lui-même.
+
+### Sticky reconnect
+
+Une fois en passthrough, la TUI est fermée (PuTTY a pris le port). En cas de drop de liaison, l'utilisateur n'a aucun moyen d'envoyer une commande pour se reconnecter. Le firmware gère donc le reconnect tout seul :
+- À un LINK_TIMEOUT (6 s sans rx) ou ARQ_FAILED, on **ne tombe pas en IDLE_SCAN**
+- Une bannière `*** link lost, reconnecting... ***` est écrite **directement** sur l'UART hôte (PuTTY l'affiche en clair)
+- `CONNECT_REQ` est re-émis vers le robot toutes les 1 s
+- Dès que le robot répond `CONNECT_OK`, une bannière `*** reconnected ***` confirme et le shell reprend
+- Seul un power-cycle de la carte REMOTE permet de sortir du mode passthrough
+
+### Robustification du keep-alive (effet de bord du passthrough)
+
+Pour que le passthrough survive à des sessions longues, deux bugs latents du keep-alive ont été corrigés :
+
+**Bug A — pong perdu = liaison morte**. Le code de RTT ping avait un guard `!rtt_ping_pending_` : si un seul PONG était perdu, le flag pending restait `true` pour toujours et plus aucun ping n'était émis jusqu'au LINK_TIMEOUT (6 s). Fix : suppression du guard. Le ping est émis sur l'intervalle quoi qu'il arrive ; le token dans le PONG continue de lier la mesure RTT au bon ping.
+
+**Bug B — pas de keep-alive 2 voies en session**. Le robot arrêtait de broadcaster ses beacons dès qu'il passait en `APP_ROBOT_CONNECTED`. Seuls les pongs (1 Hz) servaient de keep-alive sur le REMOTE. Fix : le robot continue de beacon-er toutes les 500 ms même en CONNECTED. Le REMOTE a donc maintenant **12 chances de keep-alive** dans la fenêtre 6 s (12 beacons + 6 pongs) au lieu de 6.
+
+Conséquence : à -77 dBm le link tient maintenant indéfiniment sans drop spontané, et un drop réel (robot rebooté, hors portée) se récupère en ~7-8 s au lieu de 30 s.
+
+### Effet de bord du beacon-en-CONNECTED — bug PuTTY-loop
+
+Le robot beacon-ant en CONNECTED a déclenché un comportement inattendu : `remote_handle_beacon` émettait un `UART_MSG_SCAN_RESULT` framé sur l'UART hôte à **chaque** beacon, sans filtrer par état. En passthrough, ces octets framés arrivaient dans PuTTY comme du binaire. Quand le CRC du SCAN_RESULT tombait par hasard sur `0x05` (ENQ), PuTTY répondait avec son **answerback** par défaut, la chaîne `"PuTTY\r\n"`. Cette réponse partait via RF vers le robot, ressortait sur la session distante, et l'affichage local de l'echo donnait l'illusion d'un loop "PuTTY PuTTY PuTTY...".
+
+Fix : SCAN_RESULT framé n'est émis qu'en état `APP_REMOTE_IDLE_SCAN` (le seul état où c'est utile à la TUI). En CONNECTING/SESSION/PASSTHROUGH, le beacon met juste à jour le cache + le watchdog, sans output UART.
+
+### Démonstration
+
+Le mode passthrough permet de :
+- Se logger sur un PC distant (`agetty -L 115200 ttyUSB0 vt100` sur le robot)
+- Taper des commandes shell (`ls`, `cd`, `cat`, `nano`)
+- Éditer des fichiers (latence ~150 ms par caractère, ~10 s pour redessiner l'écran de `nano`)
+- Tout cela à travers 169.4 MHz sur ~5-10 m d'intérieur
+
+C'est l'aboutissement du projet — la liaison RF est devenue un "câble série virtuel" exploitable par n'importe quel programme qui parle un port COM.
+
+---
+
 ## 5. Leçons apprises
 
 1. **Valider chaque couche avant d'empiler la suivante**. Le bring-up SPI a été l'investissement le plus rentable — chaque doute non levé en bas du stack se paye au triple en haut.
