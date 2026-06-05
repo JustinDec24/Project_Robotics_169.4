@@ -6,9 +6,9 @@ TUI (interface terminal en plein écran) qui parle au firmware côté PC
 Affiche en temps réel :
 
 - l'état de la connexion radio avec le robot
-- les robots détectés lors d'un scan
-- les statistiques de lien (RSSI moyen, taux d'erreurs paquet, RTT)
-- un log d'événements horodaté (TX / RX / LOG / erreurs)
+- les robots détectés en continu (scan automatique, pas besoin de le déclencher)
+- les statistiques de lien (RSSI en dBm, taux d'erreurs paquet, RTT) mises à jour toutes les 500 ms
+- un log d'événements horodaté (TX / RX / CMD / ACK / LOG / erreurs)
 - un prompt de commandes interactif
 
 ## Installation
@@ -56,17 +56,23 @@ elle est changée côté MCU, ajuster avec `--baud`.
 
 Une fois la console lancée, tape les commandes dans la barre du bas :
 
-| Commande              | Effet                                          |
-| --------------------- | ---------------------------------------------- |
-| `scan`                | démarre un scan des robots à portée            |
-| `scanstop`            | arrête le scan                                 |
-| `connect <id>`        | se connecte au robot d'ID donné (ex `0x10`)    |
-| `disconnect`          | coupe la connexion                             |
-| `stats`               | demande les stats du lien                      |
-| `send "<texte>"`      | envoie un paquet DATA au robot connecté        |
-| `clear`               | vide le log                                    |
-| `help`                | rappelle la liste des commandes                |
-| `quit`                | sort de la console                             |
+| Commande              | Effet                                                |
+| --------------------- | ---------------------------------------------------- |
+| `connect <id>`        | se connecte au robot d'ID donné (ex `connect 0x10`)  |
+| `disconnect`          | coupe la connexion                                   |
+| `send "<texte>"`      | envoie un paquet DATA au robot connecté (avec ARQ)   |
+| `clear`               | vide le log                                          |
+| `help`                | rappelle la liste des commandes                      |
+| `quit` / `exit`       | sort de la console                                   |
+
+Le **scan est automatique** — dès la TUI lancée, tous les robots à portée
+apparaissent dans le panneau Discovered Robots (le firmware émet un
+`SCAN_RESULT` à chaque beacon reçu). Les **stats** (RSSI / PER / RTT) sont
+mises à jour toutes les 500 ms automatiquement dans le panneau Connection.
+
+Quand tu envoies un `send "..."`, un message **`ACK robot received last send`**
+en vert confirme que le robot a bien reçu et acquitté le paquet (via le
+nouveau message `UART_MSG_TX_ACK` 0x85 émis par le firmware).
 
 Raccourcis clavier : `Ctrl+C` quitte, `Ctrl+L` efface le log.
 
@@ -86,10 +92,13 @@ firmware dans `firmware/modem/protocol/protocol.{c,h}`.
 
 - **« Could not open port »** : un autre programme (Tera Term, MPLAB IPE,
   un terminal série…) tient déjà le port. Le fermer puis relancer.
-- **Le scan trouve rien** : vérifie que la carte robot est sous tension,
-  alimentée et que la PC voit bien ses logs UART (`LOG` events dans le
-  panneau de droite).
-- **Beaucoup d'événements `UART`** au démarrage : c'est normal, ce sont les
-  prints non-encadrés du firmware (banner de boot, debug). Les messages
-  protocole apparaîtront en `RX` une fois l'app firmware passée en mode
-  protocole.
+- **Aucun robot dans Discovered Robots** : vérifie que la carte robot est
+  sous tension, que sa LED clignote (toggle à chaque beacon TX), que les
+  deux antennes 169 MHz sont en place, et qu'aucune des deux cartes n'est
+  en reset (regarder le banner `[remote] modem firmware booting`).
+- **`DISCONNECTED reason=0x03` au boot avant tout connect** : c'est un
+  frame bufférisé par l'adaptateur USB-UART d'un run précédent. Depuis le
+  fix de [serial_link.py](modem_console/serial_link.py) le buffer est
+  flushé à l'ouverture, donc ça ne devrait plus arriver.
+- **Banner `[remote] modem firmware booting`** dans Events : c'est le print
+  brut UART du `main()` au boot, normal. Apparaît une fois par power-on.
