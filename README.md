@@ -1,52 +1,85 @@
 # Project_Robotics_169.4
-Project about radio communication between pc and robot
 
-## Firmware — Remote Node
+Liaison radio bidirectionnelle **169.4 MHz** entre un PC (poste de pilotage) et un robot amphibien, basée sur :
+- **PIC18F26Q10** (MCU)
+- **TI CC1120** (transceiver sub-GHz)
+- PCB **custom** (deux exemplaires identiques, différenciés par le rôle au moment de la compilation)
 
-The `firmware/remote/` directory contains the Remote node firmware skeleton
-(PC-connected controller) for a **169.4 MHz RF link** using a
-**TI CC1120** transceiver controlled by a **PIC microcontroller**.
+## État du projet
 
-### Data flow
+✅ **Les deux cartes sont opérationnelles.** Liaison RF stable, scan + connect + transfert de données fiabilisé par ARQ, TUI Python qui pilote la carte côté PC.
 
-```
-PC <-> UART <-> PIC <-> SPI <-> CC1120 <-> RF <-> Robot
-```
+Voir le rapport de synthèse **[RAPPORT_FINAL.md](RAPPORT_FINAL.md)** pour la vue d'ensemble du projet, le journal chronologique du bring-up dans **[RAPPORT_DEBUG.md](RAPPORT_DEBUG.md)**, et la procédure de test pas-à-pas dans **[TESTING.md](TESTING.md)**.
 
-### File tree
+## Chaîne de communication
 
 ```
-firmware/remote/
-├── main.c                    Entry point + super-loop
-├── config.h                  Build-time constants (NET_ID, timing, sizes)
-├── app/
-│   ├── app.h                 State machine declarations
-│   └── app.c                 Remote-node state machine + bring-up flow
-├── board/
-│   ├── board.h               Hardware abstraction API (pin mapping lives here)
-│   └── board.c               PIC-specific stubs — the ONLY file to edit for porting
-├── drivers/
-│   ├── uart.h / uart.c       Interrupt-driven UART (RX ring buffer)
-│   ├── spi.h  / spi.c        SPI master driver
-│   └── timer.h / timer.c     1 ms tick + deadline helpers
-├── radio/
-│   ├── cc1120_regs.h         CC1120 register addresses + command strobes
-│   ├── cc1120.h / cc1120.c   Low-level SPI commands, FIFO, reset sequence
-│   └── radio_link.h / .c     Packet format, TX/RX, ACK, duty-cycle limiter
-├── protocol/
-│   ├── protocol.h / .c       UART binary framing (PC <-> Remote)
-└── util/
-    ├── ringbuf.h             Generic ring buffer (header-only)
-    └── crc8.h / crc8.c       CRC-8 for UART framing
+[PC] ─UART framé─> [Modem REMOTE] ─RF 169.4 MHz─> [Modem ROBOT] ─UART transparent─> [PC robot]
+       (TUI Python)   (PIC + CC1120)                (PIC + CC1120)                  (terminal)
 ```
 
-### Getting started
+- UART hôte ↔ REMOTE : framing binaire `[0xAA][0x55][LEN][TYPE][PAYLOAD][CRC8]` (115200 8N1)
+- UART ROBOT ↔ PC robot : transparent (octets bruts, terminal série classique)
 
-1. Create an MPLAB X project, select your PIC, and add all `.c` files as sources
-   and all `.h` files to the include path (`firmware/remote/`).
-2. Fill in `board/board.c` with your PIC's register accesses (pin init, UART,
-   SPI, timer, ISR wiring). See the TODO comments.
-3. Export a register table from **SmartRF Studio** for 169.4 MHz and paste the
-   values into `cc1120_init_minimal()` in `radio/cc1120.c`.
-4. Build, flash, connect a serial terminal at 9600 baud.  You should see
-   `REMOTE: boot` / `REMOTE: UART ok` / `REMOTE: RF init ok` log messages.
+## Structure du dépôt
+
+```
+firmware/
+├── modem/                    # sources C partagées REMOTE + ROBOT
+│   ├── main.c                # super-loop
+│   ├── config.h              # constantes (NET_ID, timeouts, sizes)
+│   ├── app/                  # state machines applicatives
+│   ├── board/                # abstraction PIC18F26Q10
+│   ├── drivers/              # UART, SPI, Timer0 (tick 1 ms)
+│   ├── protocol/             # framing UART hôte (encode/decode)
+│   ├── radio/                # driver CC1120 + radio_link + ARQ
+│   └── util/                 # ring buffer, CRC-8
+├── Modem_remote.X/           # projet MPLAB X (MODEM_ROLE=1)
+└── Modem_robot.X/            # projet MPLAB X (MODEM_ROLE=2)
+
+host_tools/
+└── modem_console/            # TUI Python (Textual + pyserial)
+```
+
+## Démarrer
+
+### Firmware (MPLAB X + XC8)
+
+1. Ouvrir `firmware/Modem_remote.X/` (carte PC) ou `firmware/Modem_robot.X/` (carte robot)
+2. Vérifier **Project Properties → XC8 → Define macros** : `MODEM_ROLE=1` pour REMOTE, `MODEM_ROLE=2` pour ROBOT
+3. Build + Make and Program Device (PICkit 4)
+
+### Hôte (TUI Python)
+
+```bash
+cd host_tools/modem_console
+pip install -e .
+python -m modem_console --port COM5 --baud 115200
+```
+
+Détails complets dans [TESTING.md](TESTING.md) et [host_tools/modem_console/README.md](host_tools/modem_console/README.md).
+
+## Spécifications RF
+
+| Paramètre | Valeur |
+|---|---|
+| Fréquence | 169.4 MHz |
+| Modulation | 2-GFSK |
+| Débit symboles | 4.8 kbps |
+| Déviation | 5 kHz |
+| Bande passante RX | 100 kHz |
+| Puissance PA | ~14 dBm (25 mW) |
+| Sensibilité (mesurée) | ~-110 dBm @ 1 % PER |
+
+## Commandes de la TUI
+
+| Commande | Action |
+|---|---|
+| `connect <id>` | Se connecter à un robot (e.g. `connect 0x10`) |
+| `disconnect` | Couper la session |
+| `send "<texte>"` | Envoyer une trame DATA fiabilisée (ARQ) |
+| `clear` | Vider l'event log |
+| `help` | Lister les commandes |
+| `quit` / `exit` | Sortir |
+
+Le scan est **automatique** : tous les robots dans la portée sont listés en continu dans le panneau Discovered Robots dès le lancement de la TUI.

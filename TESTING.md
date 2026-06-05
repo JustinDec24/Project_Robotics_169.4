@@ -133,37 +133,42 @@ Même câblage que ci-dessus.
 
 ### 6.2 Établissement de la liaison
 
-Depuis l'app PC, enchaîner dans cet ordre :
+Le scan est **automatique** dès le lancement de la TUI (le firmware émet en
+continu des `SCAN_RESULT` à chaque beacon reçu). Tous les robots dans la portée
+sont listés dans le panneau **Discovered Robots**, avec leur RSSI en dBm.
 
 | Étape | Action côté PC | Trame envoyée | Réponse attendue |
 |---|---|---|---|
-| 1 | Lancer un scan | `SCAN_START` (0x01) | `SCAN_RESULT` (0x81) pour chaque robot détecté |
-| 2 | Choisir le robot dans la liste | `CONNECT(robot_id)` (0x03) | `CONNECTED` (0x82) |
-| 3 | Envoyer du texte | `DATA_TX("hello")` (0x10) | Le texte apparaît dans le terminal du PC robot |
-| 4 | Taper côté terminal robot | (octets bruts) | `DATA_RX("...")` (0x90) reçu par l'app PC |
+| 1 | Lancer la TUI | — | Le robot apparaît dans Discovered Robots dans la seconde |
+| 2 | `connect 0x10` (ID du robot) | `CONNECT` (0x03) | `CONNECTED` (0x82) puis STATS qui remontent en continu |
+| 3 | `send "hello"` | `DATA_TX` (0x10) | Le texte apparaît dans le terminal robot **et** `TX_ACK` (0x85) confirme l'arrivée |
+| 4 | Taper côté terminal robot | (octets bruts) | `DATA_RX` (0x90) reçu par l'app PC |
 
 ### 6.3 Test bidirectionnel
 
 - Taper du texte dans l'app PC → doit apparaître dans le terminal du PC robot.
 - Taper du texte dans le terminal du PC robot → doit apparaître dans l'app PC.
-- Vérifier que les statistiques RSSI / PER / RTT remontent dans l'app PC
-  (frame `STATS` 0x84, par défaut toutes les 500 ms).
+- Vérifier que les statistiques RSSI / PER / RTT du panneau Connection
+  s'actualisent automatiquement (le firmware push `STATS` 0x84 toutes les 500 ms).
 
 ### 6.4 Test de robustesse
 
 - Couper l'alim de la carte robot pendant la session :
-  l'app PC doit recevoir `DISCONNECTED` (0x83) après ~3 secondes
-  (`LINK_LOST_TIMEOUT_MS` dans [firmware/modem/config.h:65](firmware/modem/config.h#L65)).
-- Rallumer le robot, refaire un SCAN/CONNECT.
+  l'app PC doit recevoir `DISCONNECTED reason=0x03` (LINK_TIMEOUT) après
+  6 secondes (`LINK_LOST_TIMEOUT_MS` dans [firmware/modem/config.h](firmware/modem/config.h)).
+- Rallumer le robot, refaire un `connect <id>`.
+- Tester la portée en éloignant les deux cartes. À RSSI ~-95 dBm la liaison
+  devient marginale, à ~-105 dBm elle commence à lâcher.
 
 ## 7. Diagnostic en cas de problème
 
-### Aucun robot détecté lors du SCAN
+### Aucun robot détecté dans Discovered Robots
 
 - Vérifier que la carte robot a bien été flashée avec `MODEM_ROLE=2`.
 - Vérifier les antennes 169.4 MHz sur les deux modems.
 - Rapprocher les deux cartes (< 1 m) pour exclure un problème de portée.
 - Vérifier qu'aucune des deux cartes n'est en reset (LED d'alim / log boot).
+- Vérifier que la LED du robot clignote (toggle à chaque beacon TX réussi).
 
 ### `CONNECTED` reçu mais aucune donnée ne passe
 
@@ -195,22 +200,34 @@ CRC8 calculé sur `LEN || TYPE || PAYLOAD`)
 
 | Type | Hex | Payload | Description |
 |---|---|---|---|
-| `SCAN_START` | 0x01 | — | Démarre un scan des robots |
-| `SCAN_STOP` | 0x02 | — | Arrête le scan |
+| `SCAN_START` | 0x01 | — | (Conservé pour compatibilité, scan actif par défaut) |
+| `SCAN_STOP` | 0x02 | — | (Conservé pour compatibilité) |
 | `CONNECT` | 0x03 | `robot_id` (1 octet) | Connexion à un robot |
 | `DISCONNECT` | 0x04 | — | Déconnexion |
-| `GET_STATS` | 0x05 | — | Force un envoi immédiat des stats |
+| `GET_STATS` | 0x05 | — | (Conservé pour compatibilité, STATS push automatique) |
 | `DATA_TX` | 0x10 | données utilisateur | Données à tunneliser vers le robot |
 
 ### REMOTE → PC
 
 | Type | Hex | Payload | Description |
 |---|---|---|---|
-| `SCAN_RESULT` | 0x81 | `robot_id`, `rssi`, `age` | Robot détecté |
+| `SCAN_RESULT` | 0x81 | `robot_id`, `rssi`, `age_100ms` | Beacon de robot détecté |
 | `CONNECTED` | 0x82 | `robot_id` | Liaison établie |
 | `DISCONNECTED` | 0x83 | `reason` | Liaison perdue / fermée |
-| `STATS` | 0x84 | `rssi_avg`, `per_pct`, `rtt_ms` (LE) | Statistiques de liaison |
+| `STATS` | 0x84 | `rssi_avg`, `per_pct`, `rtt_ms` (LE) | Stats push 500 ms |
+| `TX_ACK` | 0x85 | — | DATA précédent confirmé reçu par le robot |
 | `DATA_RX` | 0x90 | données | Données reçues du robot |
 | `LOG` | 0x9F | texte ASCII | Message de debug |
+
+`DISCONNECTED.reason` :
+
+| Code | Hex | Signification |
+|---|---|---|
+| `USER` | 0x01 | Déconnexion demandée par l'utilisateur |
+| `REMOTE` | 0x02 | Peer a fermé la session (DISCONNECT RF reçu) |
+| `LINK_TIMEOUT` | 0x03 | 6 s sans aucun paquet du robot connecté |
+| `CONNECT_TIMEOUT` | 0x04 | Pas de CONNECT_OK reçu dans la fenêtre 1.5 s |
+| `ARQ_FAILED` | 0x05 | 6 retries DATA épuisés sans ACK |
+| `RF` | 0x06 | DISCONNECT RF reçu |
 
 Définitions complètes dans [firmware/modem/protocol/protocol.h](firmware/modem/protocol/protocol.h).

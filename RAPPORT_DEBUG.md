@@ -403,4 +403,210 @@ La TUI parle au firmware via le framing protocole. Tant que Phase 6 (activation 
 
 ---
 
-*Dernière mise à jour : 2026-06-02 — Phase 5 et Phase 6 validées, timer ISR corrigé.*
+## Phase 7 — Remplacement du CC1120 robot et bring-up RX
+
+### Action hardware
+- Désouder l'ancien CC1120 du QFN32 de la carte robot avec air chaud (320-340°C, flux abondant)
+- Nettoyage des pads + ressoudure d'un CC1120RGZR neuf
+- Ressoudure simultanée de C201 sur AVDD_SYNTH (soudure froide identifiée Phase 7 précédente)
+
+### Résultat
+- ✅ PARTNUMBER = 0x48
+- ✅ PARTVERSION = 0x23 (silicium B+, sans bug d'errata SWRZ039D)
+- ✅ MARCSTATE = 0x01 stable, chip reste froide
+- ✅ Calibration `SCAL` passe immédiatement
+- ✅ TX fonctionnel des deux côtés
+
+### Premier blocage cross-board : RX qui ne reçoit rien
+TX émet bien (vérifié au SNOP / MARCSTATE = TX), mais aucun paquet n'arrive jamais en RX FIFO côté robot. La chip semble ne pas synchroniser.
+
+---
+
+## Phase 8 — Audit du registre table SmartRF Studio
+
+### Symptôme
+- Côté robot : `NUM_RXBYTES` reste à 0 alors qu'un paquet est émis à 50 cm de distance
+- Aucune interruption GDO0
+- MARCSTATE oscille entre RX (0x0D) et un état de récupération (0x1F)
+
+### Démarche
+Le registre table en place dans `cc1120.c` était une compilation manuelle de plusieurs sources : un export SmartRF Studio partiel + des valeurs réécrites au fil du debug. Hypothèse : incohérences entre les paramètres modem (modulation, déviation, BW) qui rendent la démodulation impossible.
+
+### Inconsistances trouvées
+- `MODCFG_DEV_E = 0x05` annoncé "2-GFSK" mais en réalité = 2-FSK
+- Déviation indiquée 5 kHz dans les commentaires mais valeur registre = 80 kHz
+- `CHAN_BW = 100 kHz` qui ne peut pas contenir une déviation à 80 kHz → démodulateur saturé
+- `SYNC_CFG1` = 0x1F (SYNC_THR = 31, max) → faux syncs sur le bruit, chip oscillant en récupération
+
+### Action
+- Re-export SmartRF Studio frais pour le profil cible (169.4 MHz, 2-GFSK 4.8 kbps, dev 5 kHz, BW 100 kHz)
+- Application **verbatim** des 64 lignes du fichier d'export, en conservant uniquement nos overrides applicatifs (`PKT_CFG1/2`, `RFEND_CFG1`, `IOCFG0 = 0x06 = PKT_SYNC_RXTX`, `FREQOFF_CFG`, `SETTLING_CFG`)
+
+### Résultat
+La démodulation devient cohérente : le DAC IQIC, le DCFILT, l'IF_MIX_CFG sont maintenant alignés avec la BW choisie. Mais **toujours aucune RX** au niveau application.
+
+---
+
+## Phase 9 — Trois bugs RX cumulés
+
+L'investigation est passée par une vague de logs de debug instrumentés (compteurs INT0, RX_DONE, TX_DONE, RX_OVERFLOW, `att`/`LEN`/`bL`/`tr`/`bC`/`bN`/`bD`/`OK` poussés toutes les 2 secondes). Le pattern observé :
+
+```
+att=4 LEN=00 bL=0 tr=0 bC=0 bN=0 bD=0 OK=0
+```
+
+→ `radio_link_receive` est appelée 4 fois (driver détecte un paquet) mais lit toujours `LEN=0` → flush_rx → loop.
+
+### Bug 9.1 — INT0 sur le mauvais front
+**Symptôme** : `INT0` (le pin où GDO0 du CC1120 est routé sur RB1) firait au début de la synchronisation, quand la FIFO est encore vide. Le firmware classait alors l'événement en `TX_DONE` (`NUM_RXBYTES == 0`) au lieu de `RX_DONE`, et ne lisait jamais la fin du paquet.
+
+**Cause** : `INTCONbits.INT0EDG = 1` (front montant) — IOCFG0 = `PKT_SYNC_RXTX` (0x06) passe à 1 au sync detect (début RX) et retombe à 0 à la fin du paquet. On voulait l'edge **descendant**.
+
+**Fix** : `INTCONbits.INT0EDG = 0` (front descendant). L'IRQ tire alors à la fin du paquet, FIFO pleine.
+
+### Bug 9.2 — `cc1120_flush_rx` laisse la chip en IDLE
+**Symptôme** : après chaque paquet rejeté (CRC fail, len invalide, FIFO underrun), `cc1120_flush_rx()` strobe SIDLE + SFRX et retourne. La chip reste en IDLE jusqu'à la prochaine intervention soft. Si le driver ne re-strobe pas SRX, le récepteur est **mort** pour toute la suite.
+
+**Fix** : ajouter `cc1120_strobe_srx()` à la fin de `flush_rx`. Sans ça, **un seul paquet corrompu** suffisait à tuer le RX du modem pour le reste de la session.
+
+```c
+void cc1120_flush_rx(void) {
+    cc1120_set_idle();
+    cc1120_strobe_sfrx();
+    cc1120_strobe_srx();   /* critical: stay in RX after flush */
+}
+```
+
+### Bug 9.3 — `RFEND_CFG1` mauvaise valeur (RXOFF_MODE = FSTXON)
+**Symptôme initial** : après réception d'un beacon, la chip s'arrêtait de listener. La défensive ad-hoc qu'on avait fini par mettre dans la boucle main (strobe SRX toutes les 100 ms si MARCSTATE != RX) compensait, mais coûtait des paquets perdus pendant les TX en session (le défensif tombait pendant un TX_END/cal → abort).
+
+**Cause finale (Phase 11)** : le commentaire dans `cc1120.c` décrivait un layout faux pour RFEND_CFG1 (bits 4:3 = RXOFF_MODE) alors que la datasheet TI **SWRU295E p.87** indique bits 5:4. Le 0x1F qu'on avait écrit donnait RXOFF_MODE = `01` = **FSTXON** (transmit-ready, RX coupée), pas RX.
+
+**Fix immédiat (Phase 9, partiel)** : changer 0x0F → 0x1F (le bit qu'on touchait par hasard améliorait un peu la situation, mais sans résoudre).
+
+→ Voir **Phase 11** pour le vrai fix.
+
+### Résultat à la fin de Phase 9
+- ✅ Liaison RF end-to-end fonctionnelle
+- ✅ BEACON, CONNECT_REQ/OK, DATA, DATA_ACK, STATS PING/RESP qui s'échangent
+- ⚠️ Stabilité fragile : `DISCONNECTED reason=0x03` (LINK_TIMEOUT) intermittents en session, scan qui ne voyait les robots qu'après un premier TX (connect)
+
+Commit `8d372cd` : *"WIP: working RF link end-to-end, debug instrumentation still in place"*
+
+---
+
+## Phase 10 — Stack applicative et UX TUI
+
+### Travaux fonctionnels
+- Ajout de l'**ARQ stop-and-wait** sur les paquets DATA (déduplication, retransmits, timeout configurable)
+- Beacon (toutes les 500 ms) émis en broadcast par le robot, parsé par REMOTE pour alimenter le panneau Discovered Robots
+- STATS pushé en continu côté REMOTE en session (RSSI moyen exponentiel, PER en %, RTT mesuré par ping/pong RF)
+- **TX_ACK** (UART_MSG = 0x85) : nouveau message émis vers le host à chaque DATA_ACK reçu, surface dans la TUI une confirmation "robot received last send"
+- **Beacon keep-alive** : pendant une session, les beacons du robot connecté rafraîchissent `last_robot_rx_ms_` ; sans ça la watchdog LINK_LOST sautait si l'utilisateur ne tapait pas de `send` pendant 6 s
+- **Flush du buffer USB-UART à l'ouverture** côté Python : sans ça, un `DISCONNECTED` qui était bufferisé par l'adaptateur FTDI/CP210x pendant que la TUI était fermée réapparaissait au boot suivant et confondait l'utilisateur
+
+### Travaux UX
+- Suppression des commandes `scan` / `scanstop` (le firmware scanne en permanence par défaut, `scan_reporting_enabled_ = true` à l'init)
+- Suppression de la commande `stats` (panneau Connection mis à jour automatiquement toutes les 500 ms)
+- Logs STATS retirés du feed Events (panneau Connection suffit, log devenait spam à 2 lignes/sec)
+- RSSI affiché en **dBm absolus** dans la TUI (CC1120 retourne RSSI sur 1 octet signé centré sur -82 dBm pour 169 MHz → décodé en dBm réels)
+- SCAN_RESULT n'affiche plus qu'**une ligne par robot découvert** (au lieu de spammer le log toutes les 500 ms)
+
+---
+
+## Phase 11 — Cause racine des disconnects 0x03 (RFEND_CFG bit layout)
+
+### Symptôme persistant après Phase 10
+Même corrections appliquées, l'utilisateur observait :
+- À **-77 dBm de RSSI** (équivalent à 30 dB de marge au-dessus de la sensibilité CC1120) → toujours des `DISCONNECTED reason=0x03` sporadiques en pleine session
+- Scan qui découvrait le robot **uniquement après une tentative de connect** (et pas dès le boot)
+- Le défensif agressif (100 ms / != RX → SRX) faisait marcher scan mais cassait la stabilité en session (abortait les TX STATS-ping)
+- Le défensif passif (500 ms / == IDLE) tenait la session mais cassait le scan-au-boot
+
+### Analyse
+Les deux symptômes pointaient vers un même problème : la chip **ne reste pas en RX par hardware**. Quelque chose la fait tomber régulièrement en FSTXON ou IDLE, et seul un kick logiciel répété la ramène en RX.
+
+### Cause racine — relecture de RFEND_CFG dans le user guide TI
+Le commentaire dans `cc1120.c` décrivait :
+```
+* RFEND_CFG1 = 0x1F:
+*   bits 1:0 = 11 -> TXOFF_MODE = RX
+*   bits 4:3 = 11 -> RXOFF_MODE = RX
+```
+
+Vérification ligne par ligne dans **SWRU295E pages 87-88** :
+
+| Registre | Champ | Position bits réelle | Position bits supposée (commentaire faux) |
+|---|---|---|---|
+| `RFEND_CFG1` (0x29) | `RXOFF_MODE` | bits **5:4** | bits 4:3 |
+| `RFEND_CFG1` (0x29) | `RX_TIME` | bits 3:1 | — |
+| `RFEND_CFG0` (0x2A) | `TXOFF_MODE` | bits **5:4** | (registre jamais touché) |
+
+Recalcul à la main :
+- `RFEND_CFG1 = 0x1F = 0001 1111`
+  - bits 5:4 = `01` = `RXOFF_MODE = FSTXON` ❌ (on voulait RX = `11`)
+- `RFEND_CFG0 = 0x00` (jamais écrit) :
+  - bits 5:4 = `00` = `TXOFF_MODE = IDLE` ❌ (on voulait RX = `11`)
+
+→ Après **chaque** RX (= beacon, ACK, STATS-resp), la chip allait en FSTXON. Après **chaque** TX (= notre ping, notre DATA), la chip allait en IDLE. Le défensif SRX rattrapait, mais avec une race condition contre les TX en cours et contre la cal post-TX.
+
+### Fix
+```c
+{ CC1120_RFEND_CFG1, 0x3Fu },  // RXOFF_MODE=11=RX, RX_TIME=max, RX_TIME_QUAL=1
+{ CC1120_RFEND_CFG0, 0x30u },  // TXOFF_MODE=11=RX, CAL_END_WAKE_UP_EN=0
+```
+
+Maintenant, par configuration hardware :
+- Après TX → cal (FS_AUTOCAL=01) → RX (auto via TXOFF_MODE)
+- Après RX → reste en RX (auto via RXOFF_MODE)
+
+### Simplification du firmware
+Toute la machinerie défensive devient inutile. Restée comme filet de sécurité minimal (poll 500 ms, recovery uniquement si chip vraiment tombée en IDLE — uniquement après une erreur FIFO).
+
+### Validation
+- Scan affiche le robot dès le boot, sans aucune action utilisateur
+- Sessions stables sur plusieurs minutes, plus de `DISCONNECTED 0x03` à RSSI nominal
+- `send` confirmés par `TX_ACK` (vert gras dans la TUI)
+
+Commit `6f57978` : *"Fix RFEND_CFG bit layout, drop debug instrumentation, clean up TUI"*
+
+### Pourquoi ce bug était sournois
+- Le **commentaire faux dans le code** matchait avec ce qu'on pensait avoir configuré → personne n'a relu le datasheet pour vérifier
+- À haut RSSI (laboratoire, antennes proches), le défensif agressif rattrapait suffisamment vite pour donner l'illusion de stabilité
+- Symptôme variait avec le timing de la boucle main → reproductible mais pas déterministe
+- La régression "scan vs session" était impossible à arbitrer sans toucher au défensif → toujours **un** des deux symptômes apparaissait
+
+→ Leçon : un commentaire qui dit "ce bit fait X" n'est pas un test. Toujours recroiser avec la datasheet quand le comportement ne colle pas avec ce que prétend le code.
+
+---
+
+## État final du projet — 2026-06-05
+
+### Carte PC (REMOTE)
+- ✅ Radio CC1120 opérationnelle (cal stable, TX/RX confirmés)
+- ✅ Stack applicative complète (scan, connect, ARQ DATA, STATS, disconnect)
+- ✅ TUI Python (`host_tools/modem_console`) full-featured
+- ✅ Liaison stable plusieurs minutes en session
+
+### Carte robot
+- ✅ CC1120 remplacé, opérationnel
+- ✅ Mêmes firmware partagé (différenciation `MODEM_ROLE = ROBOT`)
+- ✅ Beacon broadcast, CONNECT/DATA/DATA_ACK/STATS gérés
+- ✅ UART transparent côté MCU robot (le robot voit le texte tapé sur le PC distant et vice-versa)
+
+### Performances mesurées
+- **Sensibilité** : ~-110 dBm typique (datasheet CC1120, conforme à notre test)
+- **Marge à 2 m, intérieur** : RSSI ~-77 dBm → 30 dB au-dessus du seuil de coupure
+- **PER** : ~0 % en marge confortable
+- **RTT** : 100-200 ms typique (1 ping/sec)
+- **Débit utile** : limité par 4.8 kbps + ARQ stop-and-wait → ~few hundred bytes/sec
+
+### Améliorations connues mais non implémentées
+- Mode **promiscuous** côté robot (actuellement filtre sur `dst_id == local_id`) pour multi-robots
+- **Diversity / freq-hopping** sur la bande 169.4 MHz pour la robustesse en milieu bruité
+- Réduction du `BEACON_INTERVAL_MS` (500 ms) en mode "actif" pour mieux soutenir une session DATA intensive
+- Mise en cache de la cal sur l'EEPROM PIC (évite ~700 µs de cal à chaque transition IDLE→RX)
+
+---
+
+*Dernière mise à jour : 2026-06-05 — Liaison RF stable bout en bout, RFEND_CFG bit layout corrigé.*
