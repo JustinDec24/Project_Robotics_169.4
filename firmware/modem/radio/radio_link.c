@@ -200,18 +200,52 @@ bool radio_link_receive(rf_packet_t *pkt)
     return true;
 }
 
-/* ===== ARQ ================================================================*/
+/* ===== ARQ ================================================================
+ * Stop-and-wait reliability layer for RF_TYPE_DATA packets.
+ *
+ *   Sender side                          Receiver side
+ *   -----------                          -------------
+ *   arq_send() -> pending=true           handle_rx(DATA, seq=N)
+ *      |                                    |  ACK is ALWAYS sent (even if
+ *      |  tx_raw(DATA, seq=N)               |  duplicate) so a lost ACK
+ *      |  sent_ms = now                     |  doesn't strand the sender.
+ *      v                                    v
+ *   tick() polls every main-loop iter    last_rx_data_seq_ tracks the
+ *      |                                  last delivered seq → dedup on
+ *      | now >= sent_ms+ACK_TIMEOUT?      retransmits.
+ *      |   no -> still waiting
+ *      |   yes -> retries++, retransmit
+ *      |          unless retries reached MAX -> give up (link lost)
+ *      v
+ *   handle_rx(DATA_ACK, seq=N) -> pending=false, fire arq_tx_ack_event_
+ *
+ * State invariants:
+ *   - At most ONE DATA frame in flight at a time. arq_link_arq_send() refuses
+ *     while pending.
+ *   - arq_tx_.seq, .dst_id, .payload[] are valid IFF arq_tx_.pending == true.
+ *   - last_rx_data_seq_valid_ stays false until the first DATA is delivered;
+ *     after that the dedup test always runs.
+ *   - arq_tx_ack_event_ is a one-shot flag — take_ack_event() clears it on
+ *     read so the app surfaces exactly one TX_ACK per successful round-trip.
+ *===========================================================================*/
 
+/* Emit (or re-emit) the currently-pending ARQ DATA frame. Updates sent_ms to
+ * the current tick and rolls a fresh random backoff so back-to-back retries
+ * from two colliding nodes don't keep racing for the same air slot. */
 static bool arq_send_now(uint32_t now_ms)
 {
     bool ok = tx_raw(arq_tx_.dst_id, RF_TYPE_DATA, arq_tx_.seq,
                      arq_tx_.payload, arq_tx_.payload_len);
     arq_tx_.sent_ms = now_ms;
-    /* On retry, add a small random jitter so two nodes don't keep colliding. */
     arq_tx_.backoff_ms = (uint32_t)(rand_byte_() % (ARQ_BACKOFF_MAX_MS + 1u));
     return ok;
 }
 
+/* Submit a fresh DATA payload for ARQ-protected transmission. Returns false
+ * if the caller must retry later: another DATA is still pending its ACK, or
+ * the payload is empty / too long. On success, the frame is transmitted
+ * immediately and the pending flag stays set until either an ACK lands
+ * (handle_rx) or the retry budget is exhausted (tick). */
 bool radio_link_arq_send(uint8_t dst_id, const uint8_t *payload,
                          uint8_t payload_len, uint32_t now_ms)
 {
@@ -234,11 +268,16 @@ bool radio_link_arq_send(uint8_t dst_id, const uint8_t *payload,
     return true;
 }
 
+/* True while a DATA frame is awaiting ACK. Used by the coalescing layer to
+ * gate when a new RF flush is allowed. */
 bool radio_link_arq_pending(void)
 {
     return arq_tx_.pending;
 }
 
+/* Consume the one-shot "last DATA was ACKed" event. Returns true exactly once
+ * per ACK arrival, then resets. The app polls this in remote_periodic() and
+ * surfaces it to the host as a UART_MSG_TX_ACK frame. */
 bool radio_link_arq_take_ack_event(void)
 {
     if (arq_tx_ack_event_) {
@@ -248,6 +287,22 @@ bool radio_link_arq_take_ack_event(void)
     return false;
 }
 
+/* Feed an incoming RF packet into the ARQ layer. Three outcomes:
+ *
+ *   - DATA_ACK matching our pending seq -> clear pending, fire ack event,
+ *     bump data_tx_ok_ counter. Caller does NOT deliver this packet to the
+ *     app (returns NOT_DATA).
+ *   - Fresh DATA -> immediately ACK back to the sender, remember seq for
+ *     dedup, return DELIVER so the caller hands payload to the app.
+ *   - Duplicate DATA (same seq as last delivered) -> re-ACK so the peer can
+ *     clear its pending state, return DUPLICATE so the caller does NOT
+ *     deliver again. This is what saves us from double-writes when the
+ *     original ACK was lost in air.
+ *   - Anything else (BEACON, CONNECT_*, STATS, etc.) -> NOT_DATA, caller
+ *     dispatches normally.
+ *
+ * We ACK every valid DATA, dup or not — the peer needs the ACK to make
+ * forward progress regardless of our local dedup decision. */
 rx_data_action_t radio_link_arq_handle_rx(const rf_packet_t *pkt, uint32_t now_ms)
 {
     (void)now_ms;
@@ -266,8 +321,8 @@ rx_data_action_t radio_link_arq_handle_rx(const rf_packet_t *pkt, uint32_t now_m
         return RX_DATA_NOT_DATA;
     }
 
-    /* Always ACK a valid DATA, whether duplicate or fresh. The acked seq
-     * is carried in the RF header — payload is unused. */
+    /* ACK first, dedup second. The ack-seq is carried in the RF header so
+     * the body stays empty. */
     (void)tx_raw(pkt->src_id, RF_TYPE_DATA_ACK, pkt->seq, NULL, 0u);
 
     if (last_rx_data_seq_valid_ && pkt->seq == last_rx_data_seq_) {
@@ -278,6 +333,22 @@ rx_data_action_t radio_link_arq_handle_rx(const rf_packet_t *pkt, uint32_t now_m
     return RX_DATA_DELIVER;
 }
 
+/* Periodic ARQ tick — called from the app super-loop every iteration. Three
+ * possible actions:
+ *
+ *   1. No DATA pending             -> return false (nothing to do).
+ *   2. Pending, deadline not hit   -> return false (still waiting for ACK).
+ *   3. Pending, deadline hit:
+ *        - retries exhausted       -> clear pending, bump failed counter,
+ *                                     return TRUE to signal "link is dead"
+ *                                     (caller treats as ARQ_FAILED and tears
+ *                                     down the session).
+ *        - retries remain          -> retransmit, return false.
+ *
+ * The deadline is (sent_ms + ACK_TIMEOUT + backoff). The backoff is rolled
+ * fresh on each (re)transmit so two retransmitting peers desync naturally.
+ * The signed cast on (now_ms - deadline) handles the millis() wraparound
+ * correctly (32-bit, ~49 days). */
 bool radio_link_arq_tick(uint32_t now_ms)
 {
     uint32_t deadline;
@@ -302,14 +373,36 @@ bool radio_link_arq_tick(uint32_t now_ms)
     return false;
 }
 
-/* ===== DATA coalescing ====================================================*/
+/* ===== DATA coalescing ====================================================
+ * Tiny producer/consumer buffer that batches small UART writes into a single
+ * RF DATA packet. Without this, every byte the user types on the transparent
+ * UART side of the robot would trigger its own ARQ round-trip (~120 ms air
+ * time + ACK) — typing "hello" would take half a second.
+ *
+ * Flush policy (driven by data_buf_should_flush, evaluated each loop tick):
+ *   - the buffer holds >= DATA_FLUSH_BYTES (24)         -> flush now
+ *   - the oldest byte is older than DATA_FLUSH_TIMEOUT  -> flush now
+ *                                       (15 ms)            (so a single
+ *                                                          keystroke still
+ *                                                          gets out fast)
+ *
+ * The buffer is single-threaded: app code pushes from the main loop only.
+ * No locking needed.
+ *===========================================================================*/
 
+/* Drop everything in the coalescing buffer. Called on session teardown and
+ * connect/disconnect transitions so leftover bytes from a previous session
+ * don't leak into the new one. */
 void radio_link_data_buf_reset(void)
 {
     data_buf_len_      = 0;
     data_buf_first_ts_ = 0;
 }
 
+/* Push up to len bytes into the buffer. Returns the count actually accepted
+ * (less than len if the buffer hit MAX_RF_PAYLOAD). The caller is responsible
+ * for re-queuing the unaccepted tail. The first byte of an empty buffer also
+ * latches the timestamp used by the flush-after-timeout rule. */
 uint8_t radio_link_data_buf_push(const uint8_t *data, uint8_t len, uint32_t now_ms)
 {
     uint8_t accepted = 0u;
@@ -327,6 +420,10 @@ uint8_t radio_link_data_buf_push(const uint8_t *data, uint8_t len, uint32_t now_
     return accepted;
 }
 
+/* Returns true if the buffer should be flushed now. Two triggers:
+ *   - enough bytes have accumulated (DATA_FLUSH_BYTES)
+ *   - oldest byte has aged past DATA_FLUSH_TIMEOUT_MS
+ * The caller (app layer) then pops the buffer and submits it via ARQ. */
 bool radio_link_data_buf_should_flush(uint32_t now_ms)
 {
     if (data_buf_len_ == 0u) {
@@ -338,6 +435,9 @@ bool radio_link_data_buf_should_flush(uint32_t now_ms)
     return ((uint32_t)(now_ms - data_buf_first_ts_) >= DATA_FLUSH_TIMEOUT_MS);
 }
 
+/* Atomic drain: copies the buffer contents into out_payload and resets the
+ * buffer. Returns the number of bytes written. Caller must size out_payload
+ * to at least MAX_RF_PAYLOAD bytes. */
 uint8_t radio_link_data_buf_pop(uint8_t *out_payload)
 {
     uint8_t len = data_buf_len_;
@@ -349,6 +449,8 @@ uint8_t radio_link_data_buf_pop(uint8_t *out_payload)
     return len;
 }
 
+/* Current fill level — useful for diagnostics / soft back-pressure on the
+ * UART RX side (e.g. stop reading the ring buffer if we can't flush yet). */
 uint8_t radio_link_data_buf_count(void)
 {
     return data_buf_len_;
