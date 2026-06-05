@@ -31,6 +31,7 @@ class MsgType(IntEnum):
     CONNECT      = 0x03
     DISCONNECT   = 0x04
     GET_STATS    = 0x05
+    PASSTHROUGH  = 0x06   # enter raw shell-bridge mode (REMOTE-only)
     DATA_TX      = 0x10
 
     # Modem -> PC

@@ -188,7 +188,7 @@ class ModemConsoleApp(App):
             yield EventLog()
         yield Input(placeholder=("> command  "
                                  "(help / connect <id> / disconnect / "
-                                 "send <text> / clear / quit)"),
+                                 "send <text> / passthrough / clear / quit)"),
                     id="cmd-input")
         yield Footer()
 
@@ -226,13 +226,14 @@ class ModemConsoleApp(App):
         cmd = parts[0].lower()
         args = parts[1:]
         handler = {
-            "help":       self._cmd_help,
-            "connect":    self._cmd_connect,
-            "disconnect": self._cmd_disconnect,
-            "send":       self._cmd_send,
-            "clear":      self._cmd_clear,
-            "quit":       self._cmd_quit,
-            "exit":       self._cmd_quit,
+            "help":        self._cmd_help,
+            "connect":     self._cmd_connect,
+            "disconnect":  self._cmd_disconnect,
+            "send":        self._cmd_send,
+            "passthrough": self._cmd_passthrough,
+            "clear":       self._cmd_clear,
+            "quit":        self._cmd_quit,
+            "exit":        self._cmd_quit,
         }.get(cmd)
         if handler is None:
             self._log_event("ERROR", f"unknown command '{cmd}' (try help)", "red")
@@ -247,6 +248,7 @@ class ModemConsoleApp(App):
             "connect <id>      - connect to robot id (e.g. 0x10 or 16)",
             "disconnect        - drop the current connection",
             'send "<text>"     - send a data frame to the connected robot',
+            "passthrough       - switch the modem to raw shell-bridge mode",
             "clear             - clear the event log",
             "quit              - exit the console (Ctrl+C also works)",
         ]:
@@ -275,6 +277,29 @@ class ModemConsoleApp(App):
         self.state.last_tx_at = time.time()
         self._refresh_status()
         self._log_event("TX", f"DATA_TX  \"{text}\"  ({len(payload)} B)", "blue")
+
+    def _cmd_passthrough(self, _args) -> None:
+        # Hand the link to a raw terminal session. After this command the
+        # modem stops framing UART traffic — every byte that arrives on the
+        # serial port becomes RF DATA, and every RF DATA payload from the
+        # robot is written back as raw bytes. The TUI is therefore useless
+        # from here on; the user is expected to close it and open PuTTY /
+        # minicom on the same COM port. Only a power-cycle / reset of the
+        # modem exits passthrough mode.
+        self.link.send_frame(MsgType.PASSTHROUGH)
+        self._log_event("TX", "PASSTHROUGH", "blue")
+        self._log_event(
+            "INFO",
+            "Modem is now in raw shell-bridge mode.", "bold yellow")
+        self._log_event(
+            "INFO",
+            "Close this TUI and open PuTTY/minicom on the same port "
+            f"({self.link.port_name} @ {self.link.baud}).",
+            "bold yellow")
+        self._log_event(
+            "INFO",
+            "Power-cycle / reset the modem to exit passthrough.",
+            "bold yellow")
 
     def _cmd_clear(self, _args) -> None:
         self.query_one(EventLog).clear()

@@ -19,6 +19,7 @@
 #define UART_MSG_CONNECT         0x03u
 #define UART_MSG_DISCONNECT      0x04u
 #define UART_MSG_GET_STATS       0x05u
+#define UART_MSG_PASSTHROUGH     0x06u   /* enter raw shell-bridge mode      */
 #define UART_MSG_DATA_TX         0x10u
 
 /* ---- Remote -> PC types ---------------------------------------------------*/

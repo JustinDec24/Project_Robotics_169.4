@@ -15,6 +15,7 @@ typedef enum {
     APP_REMOTE_IDLE_SCAN,
     APP_REMOTE_CONNECTING,
     APP_REMOTE_SESSION,
+    APP_REMOTE_PASSTHROUGH,   /* raw bridge: host UART <-> robot UART  */
 
     /* Robot role */
     APP_ROBOT_ADVERTISING,

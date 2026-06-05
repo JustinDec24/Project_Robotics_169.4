@@ -55,6 +55,14 @@ static uint32_t rtt_ping_sent_ms_;
 static uint8_t  rtt_ping_token_;
 static bool     rtt_ping_pending_;
 static robot_cache_entry_t robot_cache_[MAX_DISCOVERED_ROBOTS];
+/* Passthrough mode "sticky reconnect" — when the link is lost while in
+ * PASSTHROUGH, we don't tear the session down (the TUI is closed, the user
+ * is in PuTTY and has no way to react). Instead we keep firing CONNECT_REQ
+ * once a second to the previously-connected robot until it answers
+ * CONNECT_OK. The user sees banners written straight to the UART so they
+ * know something happened. */
+static bool     passthrough_reconnecting_;
+static uint32_t passthrough_last_retry_ms_;
 #else
 static uint8_t  connected_remote_id_;
 static uint32_t last_beacon_ms_;
@@ -111,8 +119,30 @@ static void remote_enter_idle_scan(void)
 {
     connected_robot_id_ = 0;
     radio_link_session_reset();
-    rtt_ping_pending_   = false;
-    state_              = APP_REMOTE_IDLE_SCAN;
+    rtt_ping_pending_         = false;
+    passthrough_reconnecting_ = false;
+    state_                    = APP_REMOTE_IDLE_SCAN;
+}
+
+/* Called from PASSTHROUGH when the link is lost (LINK_TIMEOUT or
+ * ARQ_FAILED). We keep state_ = PASSTHROUGH and remember the robot_id, so
+ * the periodic tick can keep firing CONNECT_REQ at it until it answers. A
+ * one-shot banner is written straight to the UART so the user sitting in
+ * PuTTY notices what happened. */
+static void passthrough_enter_reconnect(uint32_t now_ms)
+{
+    if (!passthrough_reconnecting_) {
+        static const char banner[] =
+            "\r\n*** link lost, reconnecting... ***\r\n";
+        uart_write_bytes((const uint8_t *)banner, sizeof(banner) - 1u);
+        passthrough_reconnecting_  = true;
+        passthrough_last_retry_ms_ = now_ms - 1000u;   /* fire immediately */
+    }
+    radio_link_session_reset();
+    rtt_ping_pending_  = false;
+    /* Refresh the watchdog so we don't keep re-triggering LINK_TIMEOUT on
+     * the same stale last_robot_rx_ms_ value every tick. */
+    last_robot_rx_ms_  = now_ms;
 }
 
 static void remote_send_stats(void)
@@ -155,7 +185,14 @@ static void remote_handle_beacon(const rf_packet_t *pkt, uint32_t now_ms)
     slot->rssi         = pkt->rssi;
     slot->last_seen_ms = now_ms;
 
-    if (scan_reporting_enabled_) {
+    /* SCAN_RESULT is only useful before a session is established — it
+     * feeds the TUI's Discovered Robots panel. Once we are connected
+     * (SESSION/CONNECTING/PASSTHROUGH) emitting framed bytes on the UART
+     * either spams the TUI's event log or, worse, garbles a passthrough
+     * shell. Gating on state_ == IDLE_SCAN keeps the cache update path
+     * (used for the keep-alive watchdog) while suppressing the framed
+     * output. */
+    if (scan_reporting_enabled_ && state_ == APP_REMOTE_IDLE_SCAN) {
         protocol_send_scan_result(slot->robot_id, (uint8_t)slot->rssi, age_100ms);
     }
 }
@@ -198,6 +235,21 @@ static void remote_handle_pc_frame(const uart_frame_t *frame, uint32_t now_ms)
         remote_send_stats();
         break;
 
+    case UART_MSG_PASSTHROUGH:
+        /* Switch to raw shell-bridge mode. Only allowed during an active
+         * session (need a connected robot to bridge to). From here on, the
+         * host UART is read as raw bytes (no framing), all RF DATA arriving
+         * is written raw to the host UART, and no STATS/LOG frames are
+         * emitted (they would corrupt the shell display). If the link
+         * drops we stay in PASSTHROUGH and auto-retry CONNECT_REQ every
+         * second (the user is in PuTTY with no way to issue commands).
+         * Power-cycle / reset is the only way out. */
+        if (state_ == APP_REMOTE_SESSION) {
+            passthrough_reconnecting_ = false;
+            state_                    = APP_REMOTE_PASSTHROUGH;
+        }
+        break;
+
     case UART_MSG_DATA_TX:
         if (state_ == APP_REMOTE_SESSION && frame->payload_len > 0u) {
             uint8_t accepted = radio_link_data_buf_push(frame->payload,
@@ -235,19 +287,26 @@ static void remote_periodic(uint32_t now_ms)
         last_rx_kick_ms_ = now_ms;
     }
 
-    /* Try to flush any coalesced DATA over the ARQ. */
-    if (state_ == APP_REMOTE_SESSION) {
+    /* Try to flush any coalesced DATA over the ARQ. Same for SESSION (typed
+     * by user via DATA_TX frames) and PASSTHROUGH (typed raw on the UART). */
+    if (state_ == APP_REMOTE_SESSION || state_ == APP_REMOTE_PASSTHROUGH) {
         app_try_flush_data(connected_robot_id_, now_ms);
     }
 
     /* Surface DATA ACKs as TX_ACK frames so the host can show a
-     * "command delivered" confirmation after each successful send. */
-    if (radio_link_arq_take_ack_event()) {
+     * "command delivered" confirmation after each successful send. In
+     * PASSTHROUGH we always consume the event (to keep the flag clean)
+     * but never emit the framed message — would garble the shell. */
+    if (radio_link_arq_take_ack_event() && state_ != APP_REMOTE_PASSTHROUGH) {
         protocol_send_tx_ack();
     }
 
     /* ARQ tick — handles ACK timeout / retransmit / give-up. */
     if (radio_link_arq_tick(now_ms)) {
+        if (state_ == APP_REMOTE_PASSTHROUGH) {
+            passthrough_enter_reconnect(now_ms);
+            return;
+        }
         protocol_send_disconnected(DISCONNECT_REASON_ARQ_FAILED);
         remote_enter_idle_scan();
         return;
@@ -260,20 +319,45 @@ static void remote_periodic(uint32_t now_ms)
         return;
     }
 
-    if (state_ == APP_REMOTE_SESSION &&
+    if ((state_ == APP_REMOTE_SESSION || state_ == APP_REMOTE_PASSTHROUGH) &&
         (now_ms - last_robot_rx_ms_) >= LINK_LOST_TIMEOUT_MS) {
+        if (state_ == APP_REMOTE_PASSTHROUGH) {
+            passthrough_enter_reconnect(now_ms);
+            return;
+        }
         protocol_send_disconnected(DISCONNECT_REASON_LINK_TIMEOUT);
         remote_enter_idle_scan();
         return;
     }
 
+    /* Sticky-passthrough reconnect: re-fire CONNECT_REQ once per second
+     * until the robot answers. Don't update last_robot_rx_ms_ aggressively
+     * here — passthrough_enter_reconnect already did that to suppress the
+     * watchdog while we're trying. */
+    if (state_ == APP_REMOTE_PASSTHROUGH && passthrough_reconnecting_ &&
+        (now_ms - passthrough_last_retry_ms_) >= 1000u) {
+        (void)app_send_rf(connected_robot_id_, RF_TYPE_CONNECT_REQ, NULL, 0u);
+        passthrough_last_retry_ms_ = now_ms;
+        last_robot_rx_ms_          = now_ms;
+    }
+
+    /* STATS push is for the TUI's Connection panel — pointless and
+     * destructive in PASSTHROUGH (would inject framed bytes into the
+     * shell output). */
     if (state_ == APP_REMOTE_SESSION &&
         (now_ms - last_stats_push_ms_) >= STATS_PUSH_INTERVAL_MS) {
         remote_send_stats();
         last_stats_push_ms_ = now_ms;
     }
 
-    if (state_ == APP_REMOTE_SESSION && !rtt_ping_pending_ &&
+    /* RTT pings — the heartbeat that keeps the link alive in SESSION /
+     * PASSTHROUGH. Critically, we do NOT gate on rtt_ping_pending_: if a
+     * single PONG is lost, gating would freeze the pending flag forever
+     * and the link would die at LINK_LOST_TIMEOUT_MS (6 s). Sending a
+     * fresh ping every interval regardless guarantees we keep
+     * heartbeating; the token in the PONG payload still tells us which
+     * ping it answers, so the RTT measurement remains correct. */
+    if ((state_ == APP_REMOTE_SESSION || state_ == APP_REMOTE_PASSTHROUGH) &&
         ((now_ms - last_rtt_ping_ms_) >= RTT_PING_INTERVAL_MS)) {
         payload[0] = RF_STATS_PING_REQ;
         payload[1] = ++rtt_ping_token_;
@@ -296,6 +380,24 @@ static void remote_consume_uart(uint32_t now_ms)
     }
 }
 
+/* PASSTHROUGH mode UART pump: skip the framing decoder entirely and push
+ * raw bytes straight into the DATA coalescing buffer. The coalescing layer
+ * (DATA_FLUSH_BYTES / DATA_FLUSH_TIMEOUT_MS) then batches them into RF DATA
+ * packets so a single keystroke still gets out fast (~15 ms) while a paste
+ * of a longer command flushes by size. We stop reading when the buffer
+ * fills up; bytes stay in the UART RX ring (512 B) until the next tick,
+ * providing natural backpressure when the air link can't keep up. */
+static void remote_consume_uart_passthrough(uint32_t now_ms)
+{
+    uint8_t b;
+    while (radio_link_data_buf_count() < MAX_RF_PAYLOAD) {
+        if (!uart_read_byte_nonblocking(&b)) {
+            return;
+        }
+        (void)radio_link_data_buf_push(&b, 1u, now_ms);
+    }
+}
+
 static void remote_consume_rf(const rf_packet_t *pkt, uint32_t now_ms)
 {
     rx_data_action_t action;
@@ -305,7 +407,8 @@ static void remote_consume_rf(const rf_packet_t *pkt, uint32_t now_ms)
         /* Beacons from the connected robot are also a keep-alive: every
          * 500 ms beacon prevents the LINK_LOST watchdog from firing even
          * if our RTT ping or DATA exchange happens to be stalled. */
-        if (state_ == APP_REMOTE_SESSION && pkt->src_id == connected_robot_id_) {
+        if ((state_ == APP_REMOTE_SESSION || state_ == APP_REMOTE_PASSTHROUGH) &&
+            pkt->src_id == connected_robot_id_) {
             last_robot_rx_ms_ = now_ms;
         }
         return;
@@ -322,14 +425,35 @@ static void remote_consume_rf(const rf_packet_t *pkt, uint32_t now_ms)
         return;
     }
 
-    if (state_ != APP_REMOTE_SESSION || pkt->src_id != connected_robot_id_) {
+    /* Sticky-passthrough reconnect succeeded: write a confirmation banner
+     * to the host UART so the user knows the shell is live again, and
+     * resume normal passthrough operation. */
+    if (state_ == APP_REMOTE_PASSTHROUGH && passthrough_reconnecting_ &&
+        pkt->type == RF_TYPE_CONNECT_OK && pkt->src_id == connected_robot_id_) {
+        static const char banner[] = "\r\n*** reconnected ***\r\n";
+        uart_write_bytes((const uint8_t *)banner, sizeof(banner) - 1u);
+        passthrough_reconnecting_ = false;
+        last_robot_rx_ms_         = now_ms;
+        last_rtt_ping_ms_         = now_ms;
+        rtt_ping_pending_         = false;
+        return;
+    }
+
+    if ((state_ != APP_REMOTE_SESSION && state_ != APP_REMOTE_PASSTHROUGH) ||
+        pkt->src_id != connected_robot_id_) {
         return;
     }
 
     last_robot_rx_ms_ = now_ms;
 
     if (pkt->type == RF_TYPE_DISCONNECT) {
-        protocol_send_disconnected(DISCONNECT_REASON_RF);
+        /* In passthrough we can't send framed messages without garbling
+         * the shell display — just tear the session down silently. The
+         * user will notice typing no longer echoes and either reset the
+         * modem or re-open the TUI to reconnect. */
+        if (state_ != APP_REMOTE_PASSTHROUGH) {
+            protocol_send_disconnected(DISCONNECT_REASON_RF);
+        }
         remote_enter_idle_scan();
         return;
     }
@@ -338,7 +462,14 @@ static void remote_consume_rf(const rf_packet_t *pkt, uint32_t now_ms)
     if (pkt->type == RF_TYPE_DATA || pkt->type == RF_TYPE_DATA_ACK) {
         action = radio_link_arq_handle_rx(pkt, now_ms);
         if (action == RX_DATA_DELIVER && pkt->payload_len > 0u) {
-            protocol_send_data_rx(pkt->payload, pkt->payload_len);
+            /* In PASSTHROUGH the host UART is a raw terminal — write the
+             * payload directly without framing. In SESSION it goes via a
+             * framed UART_MSG_DATA_RX so the TUI can decode it. */
+            if (state_ == APP_REMOTE_PASSTHROUGH) {
+                uart_write_bytes(pkt->payload, pkt->payload_len);
+            } else {
+                protocol_send_data_rx(pkt->payload, pkt->payload_len);
+            }
         }
         return;
     }
@@ -490,6 +621,8 @@ void app_init(void)
         rtt_ping_sent_ms_       = 0u;
         rtt_ping_token_         = 0u;
         rtt_ping_pending_       = false;
+        passthrough_reconnecting_  = false;
+        passthrough_last_retry_ms_ = 0u;
         for (i = 0u; i < MAX_DISCOVERED_ROBOTS; i++) {
             robot_cache_[i].valid        = false;
             robot_cache_[i].robot_id     = 0u;
@@ -549,6 +682,18 @@ void app_task(void)
         }
         remote_periodic(now_ms);
         break;
+
+    case APP_REMOTE_PASSTHROUGH:
+        /* In passthrough we skip the framing decoder — raw UART bytes go
+         * straight into the DATA pipeline. Everything else (RF receive,
+         * ARQ tick, keep-alive watchdog) still runs as in SESSION. */
+        remote_consume_uart_passthrough(now_ms);
+        app_consume_rf(now_ms);
+        if (state_ == APP_RX_ERROR_RECOVER || state_ == APP_TX_ERROR_RECOVER) {
+            break;
+        }
+        remote_periodic(now_ms);
+        break;
 #else
     case APP_ROBOT_ADVERTISING:
         app_consume_rf(now_ms);
@@ -581,6 +726,17 @@ void app_task(void)
             radio_link_session_reset();
             state_ = APP_ROBOT_ADVERTISING;
             break;
+        }
+        /* Keep beaconing even while connected — gives the REMOTE a strong
+         * keep-alive signal (2 Hz) so a single dropped RTT pong doesn't
+         * trigger a 6 s LINK_TIMEOUT. The broadcast beacon also helps a
+         * third REMOTE rediscover this robot if it shows up later. Light
+         * cost: ~10 ms air time every 500 ms = 2 % duty cycle. */
+        if ((now_ms - last_beacon_ms_) >= BEACON_INTERVAL_MS) {
+            if (app_send_rf(RF_BROADCAST_ID, RF_TYPE_BEACON, NULL, 0u)) {
+                led_toggle();
+            }
+            last_beacon_ms_ = now_ms;
         }
         app_try_flush_data(connected_remote_id_, now_ms);
         break;
