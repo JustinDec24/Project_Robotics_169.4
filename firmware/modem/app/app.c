@@ -48,6 +48,8 @@ static protocol_decoder_t uart_dec_;
 static bool     scan_reporting_enabled_;
 static uint8_t  connected_robot_id_;
 static uint32_t connect_request_ms_;
+static uint32_t connect_last_retry_ms_;
+static uint8_t  connect_retry_count_;
 static uint32_t last_robot_rx_ms_;
 static uint32_t last_stats_push_ms_;
 static uint32_t last_rtt_ping_ms_;
@@ -63,6 +65,21 @@ static robot_cache_entry_t robot_cache_[MAX_DISCOVERED_ROBOTS];
  * know something happened. */
 static bool     passthrough_reconnecting_;
 static uint32_t passthrough_last_retry_ms_;
+
+/* TUI session "sticky reconnect" — same idea for plain SESSION state. On a
+ * marginal link, brief PER spikes can cause LINK_TIMEOUT or ARQ_FAILED
+ * even after a successful connect; rather than dropping the user back to
+ * IDLE_SCAN (forcing them to manually retype `connect 0x10`), we send the
+ * DISCONNECTED frame to the TUI once, keep state_ = SESSION, and retry
+ * CONNECT_REQ in the background until the robot answers — or until the
+ * total budget (SESSION_RECONNECT_BUDGET_MS) is exhausted. When it
+ * succeeds, a fresh CONNECTED frame is sent to the TUI so the Events log
+ * narrates "DISCONNECTED -> ... -> CONNECTED" cleanly. */
+static bool     session_reconnecting_;
+static uint32_t session_reconnect_start_ms_;
+static uint32_t session_last_retry_ms_;
+#define SESSION_RECONNECT_BUDGET_MS   60000u   /* give up after 60 s */
+#define SESSION_RECONNECT_INTERVAL_MS  1000u   /* one CONNECT_REQ / s */
 #else
 static uint8_t  connected_remote_id_;
 static uint32_t last_beacon_ms_;
@@ -120,8 +137,27 @@ static void remote_enter_idle_scan(void)
     connected_robot_id_ = 0;
     radio_link_session_reset();
     rtt_ping_pending_         = false;
+    session_reconnecting_     = false;
     passthrough_reconnecting_ = false;
     state_                    = APP_REMOTE_IDLE_SCAN;
+}
+
+/* Called from SESSION when LINK_TIMEOUT or ARQ_FAILED fires. We keep
+ * state_ = SESSION and start retrying CONNECT_REQ in the background. The
+ * TUI is told once via a framed DISCONNECTED so the user knows the link
+ * blipped; a fresh CONNECTED is sent if/when the retry succeeds. */
+static void session_enter_reconnect(uint32_t now_ms, uint8_t reason)
+{
+    if (!session_reconnecting_) {
+        protocol_send_disconnected(reason);
+        session_reconnecting_       = true;
+        session_reconnect_start_ms_ = now_ms;
+        session_last_retry_ms_      = now_ms - SESSION_RECONNECT_INTERVAL_MS;
+    }
+    radio_link_session_reset();
+    rtt_ping_pending_ = false;
+    /* Suppress the watchdog while we're trying. */
+    last_robot_rx_ms_ = now_ms;
 }
 
 /* Called from PASSTHROUGH when the link is lost (LINK_TIMEOUT or
@@ -215,9 +251,12 @@ static void remote_handle_pc_frame(const uart_frame_t *frame, uint32_t now_ms)
         }
         connected_robot_id_ = frame->payload[0];
         radio_link_session_reset();
+        session_reconnecting_ = false;   /* explicit user action, restart fresh */
         if (app_send_rf(connected_robot_id_, RF_TYPE_CONNECT_REQ, NULL, 0u)) {
-            connect_request_ms_ = now_ms;
-            state_ = APP_REMOTE_CONNECTING;
+            connect_request_ms_    = now_ms;
+            connect_last_retry_ms_ = now_ms;
+            connect_retry_count_   = 0u;
+            state_                 = APP_REMOTE_CONNECTING;
         } else {
             protocol_send_log("CONNECT_REQ TX failed");
         }
@@ -307,9 +346,27 @@ static void remote_periodic(uint32_t now_ms)
             passthrough_enter_reconnect(now_ms);
             return;
         }
+        if (state_ == APP_REMOTE_SESSION) {
+            session_enter_reconnect(now_ms, DISCONNECT_REASON_ARQ_FAILED);
+            return;
+        }
         protocol_send_disconnected(DISCONNECT_REASON_ARQ_FAILED);
         remote_enter_idle_scan();
         return;
+    }
+
+    /* CONNECT_REQ retry — on a marginal link a single CONNECT_REQ can be
+     * lost. We retry every CONNECT_RETRY_INTERVAL_MS up to CONNECT_MAX_RETRIES
+     * times before giving up. The whole budget is bounded by
+     * CONNECT_TIMEOUT_MS so the TUI doesn't hang too long if the robot is
+     * really unreachable. */
+    if (state_ == APP_REMOTE_CONNECTING &&
+        connect_retry_count_ < CONNECT_MAX_RETRIES &&
+        (now_ms - connect_last_retry_ms_) >= CONNECT_RETRY_INTERVAL_MS) {
+        if (app_send_rf(connected_robot_id_, RF_TYPE_CONNECT_REQ, NULL, 0u)) {
+            connect_last_retry_ms_ = now_ms;
+            connect_retry_count_++;
+        }
     }
 
     if (state_ == APP_REMOTE_CONNECTING &&
@@ -323,6 +380,10 @@ static void remote_periodic(uint32_t now_ms)
         (now_ms - last_robot_rx_ms_) >= LINK_LOST_TIMEOUT_MS) {
         if (state_ == APP_REMOTE_PASSTHROUGH) {
             passthrough_enter_reconnect(now_ms);
+            return;
+        }
+        if (state_ == APP_REMOTE_SESSION) {
+            session_enter_reconnect(now_ms, DISCONNECT_REASON_LINK_TIMEOUT);
             return;
         }
         protocol_send_disconnected(DISCONNECT_REASON_LINK_TIMEOUT);
@@ -339,6 +400,21 @@ static void remote_periodic(uint32_t now_ms)
         (void)app_send_rf(connected_robot_id_, RF_TYPE_CONNECT_REQ, NULL, 0u);
         passthrough_last_retry_ms_ = now_ms;
         last_robot_rx_ms_          = now_ms;
+    }
+
+    /* Sticky-session reconnect: same idea but for the TUI mode. The user
+     * stays watching the Events log; when the retry succeeds we surface
+     * a CONNECTED frame and session traffic resumes transparently. */
+    if (state_ == APP_REMOTE_SESSION && session_reconnecting_) {
+        if ((now_ms - session_reconnect_start_ms_) >= SESSION_RECONNECT_BUDGET_MS) {
+            remote_enter_idle_scan();
+            return;
+        }
+        if ((now_ms - session_last_retry_ms_) >= SESSION_RECONNECT_INTERVAL_MS) {
+            (void)app_send_rf(connected_robot_id_, RF_TYPE_CONNECT_REQ, NULL, 0u);
+            session_last_retry_ms_ = now_ms;
+            last_robot_rx_ms_      = now_ms;
+        }
     }
 
     /* STATS push is for the TUI's Connection panel — pointless and
@@ -436,6 +512,20 @@ static void remote_consume_rf(const rf_packet_t *pkt, uint32_t now_ms)
         last_robot_rx_ms_         = now_ms;
         last_rtt_ping_ms_         = now_ms;
         rtt_ping_pending_         = false;
+        return;
+    }
+
+    /* Sticky-session reconnect succeeded: send a fresh CONNECTED frame so
+     * the TUI's Events log shows "CONNECTED" again and the Connection
+     * panel turns green. */
+    if (state_ == APP_REMOTE_SESSION && session_reconnecting_ &&
+        pkt->type == RF_TYPE_CONNECT_OK && pkt->src_id == connected_robot_id_) {
+        protocol_send_connected(connected_robot_id_);
+        session_reconnecting_ = false;
+        last_robot_rx_ms_     = now_ms;
+        last_stats_push_ms_   = now_ms;
+        last_rtt_ping_ms_     = now_ms;
+        rtt_ping_pending_     = false;
         return;
     }
 
@@ -621,6 +711,11 @@ void app_init(void)
         rtt_ping_sent_ms_       = 0u;
         rtt_ping_token_         = 0u;
         rtt_ping_pending_       = false;
+        connect_last_retry_ms_     = 0u;
+        connect_retry_count_       = 0u;
+        session_reconnecting_      = false;
+        session_reconnect_start_ms_ = 0u;
+        session_last_retry_ms_     = 0u;
         passthrough_reconnecting_  = false;
         passthrough_last_retry_ms_ = 0u;
         for (i = 0u; i < MAX_DISCOVERED_ROBOTS; i++) {

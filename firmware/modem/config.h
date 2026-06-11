@@ -56,18 +56,35 @@
 #define UART_BAUD_DEFAULT           115200u
 
 /* ---- Ring-buffer sizes (MUST be power of 2) ------------------------------*/
-#define UART_RX_BUF_SIZE            512u
+/* RX is sized to absorb host-side bursts (e.g. PuTTY paste) that arrive at
+ * 115200 baud (~11.5 KB/s) while the RF link only drains at ~350 B/s. With
+ * 2048 B we can swallow paste-bursts of ~2 KB without losing bytes; beyond
+ * that the firmware would need software flow control (XON/XOFF) to stall
+ * the sender — not implemented today, listed as a future enhancement. */
+#define UART_RX_BUF_SIZE            2048u
 #define UART_TX_BUF_SIZE            512u
 
 /* ---- Timing (ms) ---------------------------------------------------------*/
 #define BEACON_INTERVAL_MS          500u
-#define CONNECT_TIMEOUT_MS          1500u  /* 3 beacon periods, more forgiving */
+/* CONNECT_REQ retry strategy — sized to handle marginal-link conditions
+ * (PER 20-40 % at -85 to -95 dBm RSSI). 12 retries × 250 ms = 3 s budget
+ * with TIMEOUT a touch above to absorb the last RTT. With these values
+ * the probability of all retries failing at 30 % PER is 0.3^12 ≈ 0.05 %,
+ * essentially guaranteeing connect success as long as the link is alive. */
+#define CONNECT_TIMEOUT_MS          3500u
+#define CONNECT_RETRY_INTERVAL_MS   250u
+#define CONNECT_MAX_RETRIES         12u
 #define LINK_LOST_TIMEOUT_MS        6000u  /* 12 beacon periods worth */
 #define STATS_PUSH_INTERVAL_MS      500u
 #define RTT_PING_INTERVAL_MS        1000u
 
 /* ---- Data coalescing -----------------------------------------------------*/
-#define DATA_FLUSH_BYTES            24u
+/* Flush threshold = MAX_RF_PAYLOAD to maximize the bytes-per-ARQ-cycle ratio
+ * during bursts (paste, large outputs). Single keystrokes are unaffected —
+ * they still get out after DATA_FLUSH_TIMEOUT_MS even if the buffer hasn't
+ * filled. Bumped from 24 to 48 after measuring ~149 B/s instead of the
+ * ~300 B/s the link can sustain. */
+#define DATA_FLUSH_BYTES            48u
 #define DATA_FLUSH_TIMEOUT_MS       15u
 
 /* ---- ARQ (stop-and-wait per direction) -----------------------------------*/
