@@ -290,8 +290,31 @@ static const uint8_t cc1120_std_regs_[][2] = {
     { CC1120_DCFILT_CFG,     0x15u },
     { CC1120_PREAMBLE_CFG1,  0x18u },
     { CC1120_FREQ_IF_CFG,    0x3Au },
-    { CC1120_IQIC,           0x00u },
-    { CC1120_CHAN_BW,        0x02u },
+    /* IQIC = 0x80 enables digital image-channel compensation. SmartRF
+     * Studio enables it for narrow-band configs (≤ 25 kHz RX BW) where
+     * the image at 2·fIF can spill into the wanted channel; with a
+     * 56.6 kHz IF and 25 kHz channel filter, image rejection contributes
+     * ~3-5 dB to the effective sensitivity. Kept at 0x00 was a leftover
+     * from the original 100 kHz config where image leakage was further
+     * away from the passband. */
+    { CC1120_IQIC,           0x80u },
+    /* CHAN_BW = 0x08 narrows the RX filter from 100 kHz (= 0x02) to 25 kHz,
+     * gaining ~6 dB of sensitivity ( = 10·log10(100/25) less integrated
+     * noise) and roughly doubling free-space range. Combined with
+     * IQIC enabled (above) the total gain vs the previous 100 kHz config
+     * is closer to ~9-10 dB.
+     *
+     * Math (SWRU295E §6.1, Equation 10, Table 17):
+     *   RX_BW = fxosc / (Dec × BB_CIC_DECFACT × 8)
+     *   With fxosc=32 MHz, ADC_CIC_DECFACT=0 (Dec=20), BB_CIC_DECFACT=8:
+     *   RX_BW = 32e6 / (20 × 8 × 8) = 25.0 kHz exact.
+     *
+     * All companion registers (FREQ_IF_CFG, DCFILT_CFG, AGC*) were
+     * verified against a SmartRF Studio export for 169.4 MHz / 4.8 kbps /
+     * 25 kHz BW: identical to our existing values except for IQIC.
+     *
+     * Revert: set this byte back to 0x02 and IQIC back to 0x00. */
+    { CC1120_CHAN_BW,        0x08u },
     { CC1120_MDMCFG0,        0x05u },
     { CC1120_SYMBOL_RATE2,   0x63u },     /* SmartRF only emits SYMBOL_RATE2;
                                            * SYMBOL_RATE1/0 stay at reset */

@@ -63,9 +63,13 @@
 #pragma config PPS1WAY = OFF        /* Allow re-mapping PPS at runtime */
 #pragma config STVREN = ON
 #pragma config XINST  = OFF
-/* CONFIG3L */
-#pragma config WDTCPS = WDTCPS_31
-#pragma config WDTE   = OFF
+/* CONFIG3L — Watchdog ON, period ~4.1 s (WDTCPS_13 = 1:131072 on
+ * LFINTOSC@31 kHz). Any code path that blocks the main loop for more
+ * than 4 s (failing SPI, wedged CC1120, accidental infinite loop)
+ * triggers a reset — essential for the robot which has nobody around
+ * to press a reset button. The main loop calls CLRWDT() each iteration. */
+#pragma config WDTCPS = WDTCPS_13
+#pragma config WDTE   = ON
 /* CONFIG3H */
 #pragma config WDTCWS = WDTCWS_7
 #pragma config WDTCCS = SC

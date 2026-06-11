@@ -41,7 +41,13 @@ static int8_t   rssi_avg_;          /* signed dBm-like, smoothed             */
 static bool     rssi_avg_valid_;
 static uint32_t data_tx_ok_;        /* DATA frames acked                     */
 static uint32_t data_tx_failed_;    /* DATA frames given up after retries    */
+static uint32_t data_tx_retries_;   /* cumulative retransmits used           */
 static uint16_t rtt_ms_;
+
+/* ---- Partial-receive state (see radio_link_receive comment) --------------*/
+static uint8_t  rx_partial_body_len_;  /* 0 when no LEN stashed, else body  */
+static uint32_t rx_partial_start_ms_;
+#define RX_PARTIAL_TIMEOUT_MS  150u    /* > 88 ms air time for 48 B payload */
 
 /* ---- One-shot event flag, set when the most recent ARQ DATA was ACKed.
  * The app layer polls this once per remote_periodic() tick and surfaces
@@ -74,8 +80,11 @@ void radio_link_init(uint8_t local_id, uint8_t net_id)
     rssi_avg_valid_        = false;
     data_tx_ok_            = 0;
     data_tx_failed_        = 0;
+    data_tx_retries_       = 0;
     rtt_ms_                = 0;
     rand_state_            = 0xACE1u;
+    rx_partial_body_len_   = 0u;
+    rx_partial_start_ms_   = 0u;
 }
 
 void radio_link_session_reset(void)
@@ -89,6 +98,7 @@ void radio_link_session_reset(void)
     rssi_avg_valid_         = false;
     data_tx_ok_             = 0;
     data_tx_failed_         = 0;
+    data_tx_retries_        = 0;
     rtt_ms_                 = 0;
 }
 
@@ -143,7 +153,7 @@ bool radio_link_send(uint8_t dst_id, uint8_t type,
 
 /* ===== Receive ============================================================*/
 
-bool radio_link_receive(rf_packet_t *pkt)
+bool radio_link_receive(rf_packet_t *pkt, uint32_t now_ms)
 {
     uint8_t body_len;
     uint8_t need;
@@ -151,25 +161,41 @@ bool radio_link_receive(rf_packet_t *pkt)
     uint8_t i;
     uint8_t status_idx;
 
-    /* Need at least 1 (LEN) byte to start. */
-    if (cc1120_get_num_rxbytes() == 0u) {
-        return false;
-    }
-
-    cc1120_read_rxfifo(raw, 1);
-    body_len = raw[0];
-    if (body_len < RF_HEADER_SIZE || body_len > RF_MAX_BODY_SIZE) {
-        cc1120_flush_rx();
-        return false;
+    if (rx_partial_body_len_ == 0u) {
+        /* No stashed LEN — try to start a new packet read. */
+        if (cc1120_get_num_rxbytes() == 0u) {
+            return false;
+        }
+        cc1120_read_rxfifo(raw, 1);
+        body_len = raw[0];
+        if (body_len < RF_HEADER_SIZE || body_len > RF_MAX_BODY_SIZE) {
+            cc1120_flush_rx();
+            return false;
+        }
+        rx_partial_body_len_ = body_len;
+        rx_partial_start_ms_ = now_ms;
+    } else {
+        /* Resume a partial read started on a previous call. The LEN byte
+         * was already consumed from the FIFO; the body bytes should now
+         * (or shortly) be following it. */
+        body_len  = rx_partial_body_len_;
+        raw[0]    = body_len;
     }
 
     need = (uint8_t)(body_len + RF_APPEND_STATUS_BYTES);
     if (cc1120_get_num_rxbytes() < need) {
-        cc1120_flush_rx();
+        /* Body still arriving — keep the stashed LEN and try again on the
+         * next tick. Only flush if we've been waiting suspiciously long
+         * (chip stuck, IRQ storm, partial demod, etc.). */
+        if ((now_ms - rx_partial_start_ms_) >= RX_PARTIAL_TIMEOUT_MS) {
+            rx_partial_body_len_ = 0u;
+            cc1120_flush_rx();
+        }
         return false;
     }
 
     cc1120_read_rxfifo(raw + 1, need);
+    rx_partial_body_len_ = 0u;
 
     pkt->net_id      = raw[1];
     pkt->src_id      = raw[2];
@@ -229,15 +255,21 @@ bool radio_link_receive(rf_packet_t *pkt)
  *     read so the app surfaces exactly one TX_ACK per successful round-trip.
  *===========================================================================*/
 
-/* Emit (or re-emit) the currently-pending ARQ DATA frame. Updates sent_ms to
- * the current tick and rolls a fresh random backoff so back-to-back retries
- * from two colliding nodes don't keep racing for the same air slot. */
+/* Emit (or re-emit) the currently-pending ARQ DATA frame. Updates sent_ms
+ * to the current tick and rolls a fresh deadline:
+ *   ACK_TIMEOUT + retry_count * BACKOFF_GROWTH + rand(0, BACKOFF_MAX)
+ * The jitter range (~120 ms) is sized to exceed a single DATA air time
+ * (~100 ms) so two colliding nodes desync on retry instead of re-
+ * colliding. The growth term spreads out subsequent retries when the
+ * channel is genuinely lossy. */
 static bool arq_send_now(uint32_t now_ms)
 {
     bool ok = tx_raw(arq_tx_.dst_id, RF_TYPE_DATA, arq_tx_.seq,
                      arq_tx_.payload, arq_tx_.payload_len);
     arq_tx_.sent_ms = now_ms;
-    arq_tx_.backoff_ms = (uint32_t)(rand_byte_() % (ARQ_BACKOFF_MAX_MS + 1u));
+    arq_tx_.backoff_ms =
+        (uint32_t)(arq_tx_.retries) * ARQ_BACKOFF_GROWTH_MS +
+        (uint32_t)(rand_byte_() % (ARQ_BACKOFF_MAX_MS + 1u));
     return ok;
 }
 
@@ -369,6 +401,7 @@ bool radio_link_arq_tick(uint32_t now_ms)
     }
 
     arq_tx_.retries++;
+    data_tx_retries_++;     /* track total air retransmits for metrics */
     (void)arq_send_now(now_ms);
     return false;
 }
@@ -477,12 +510,19 @@ void radio_link_metrics_set_rtt(uint16_t rtt_ms)
 
 void radio_link_metrics_get(link_metrics_t *out)
 {
-    uint32_t total = data_tx_ok_ + data_tx_failed_;
+    uint32_t total    = data_tx_ok_ + data_tx_failed_;
+    uint32_t rx10     = 0u;
     out->rssi_avg = rssi_avg_;
     if (total == 0u) {
         out->per_pct = 0u;
     } else {
         out->per_pct = (uint8_t)((data_tx_failed_ * 100u) / total);
+        /* retries × 10 / total — kept as fixed-point so the host gets a
+         * one-decimal precision (e.g. 23 means 2.3 retries/frame).
+         * Saturate at 255 in the rare case of a long history. */
+        rx10 = (data_tx_retries_ * 10u) / total;
+        if (rx10 > 255u) rx10 = 255u;
     }
+    out->retries_x10 = (uint8_t)rx10;
     out->rtt_ms = rtt_ms_;
 }

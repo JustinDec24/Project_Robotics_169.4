@@ -50,6 +50,21 @@ static uint8_t  connected_robot_id_;
 static uint32_t connect_request_ms_;
 static uint32_t connect_last_retry_ms_;
 static uint8_t  connect_retry_count_;
+/* Wall-clock of the last RF packet of ANY kind we received and accepted
+ * (CRC OK, our net, addressed to us or broadcast). Drives the app-level
+ * RX watchdog: in SESSION/PASSTHROUGH we expect to hear something every
+ * ~1 s (beacons + RTT pongs); if nothing arrives for RX_SILENCE_REINIT_MS
+ * the chip is probably wedged in a state our defensive SRX can't fix.
+ * Last resort: re-run cc1120_init_minimal() to recover. */
+static uint32_t last_any_rx_ms_;
+/* Random byte sent in every CONNECT_REQ / echoed back in CONNECT_OK. A
+ * fresh value is rolled on each user-initiated `connect`; retries (whether
+ * inside CONNECTING or during a sticky reconnect) reuse the same one. The
+ * robot uses this to tell "retry of the same connect" (don't reset its
+ * dedup state) apart from "a brand new session after the remote rebooted"
+ * (reset the ARQ seq tracker so the new seq=0 isn't mistaken for a
+ * duplicate of an old delivered frame). */
+static uint8_t  current_session_token_;
 static uint32_t last_robot_rx_ms_;
 static uint32_t last_stats_push_ms_;
 static uint32_t last_rtt_ping_ms_;
@@ -84,6 +99,13 @@ static uint32_t session_last_retry_ms_;
 static uint8_t  connected_remote_id_;
 static uint32_t last_beacon_ms_;
 static uint32_t last_remote_rx_ms_;
+/* Session token learned from the last accepted CONNECT_REQ. A CONNECT_REQ
+ * arriving in CONNECTED with the SAME src+token is a benign retry (just
+ * re-ACK); a DIFFERENT token means the remote rebooted and we must reset
+ * the session state before re-ACKing, otherwise the new seq=0 would race
+ * a stale last_rx_data_seq_=0 and get dedup'd as a duplicate. */
+static uint8_t  current_session_token_;
+static bool     current_session_token_valid_;
 #endif
 
 /* ===== Helpers ============================================================*/
@@ -187,13 +209,33 @@ static void remote_send_stats(void)
     radio_link_metrics_get(&m);
     /* protocol_send_stats expects unsigned RSSI byte; cast through uint8_t
      * preserves the bit pattern (PC side reinterprets as int8). */
-    protocol_send_stats((uint8_t)m.rssi_avg, m.per_pct, m.rtt_ms);
+    protocol_send_stats((uint8_t)m.rssi_avg, m.per_pct, m.rtt_ms,
+                        m.retries_x10);
 }
 
-static robot_cache_entry_t *remote_find_robot_slot(uint8_t robot_id)
+/* Expire cache entries we haven't heard from for SCAN_CACHE_EXPIRY_MS so
+ * the Discovered Robots panel doesn't display ghosts from robots that
+ * were powered off ages ago. Walks the whole cache; called lazily from
+ * the beacon handler (no extra periodic timer needed). */
+static void remote_expire_robot_cache(uint32_t now_ms)
 {
     uint8_t i;
-    robot_cache_entry_t *free_slot = NULL;
+    for (i = 0u; i < MAX_DISCOVERED_ROBOTS; i++) {
+        if (robot_cache_[i].valid &&
+            (now_ms - robot_cache_[i].last_seen_ms) >= SCAN_CACHE_EXPIRY_MS) {
+            robot_cache_[i].valid = false;
+        }
+    }
+}
+
+static robot_cache_entry_t *remote_find_robot_slot(uint8_t robot_id,
+                                                   uint32_t now_ms)
+{
+    uint8_t i;
+    robot_cache_entry_t *free_slot   = NULL;
+    robot_cache_entry_t *oldest_slot = &robot_cache_[0];
+    /* Existing entry → return it.
+     * No match → prefer a free slot, otherwise replace the LRU entry. */
     for (i = 0u; i < MAX_DISCOVERED_ROBOTS; i++) {
         if (robot_cache_[i].valid && robot_cache_[i].robot_id == robot_id) {
             return &robot_cache_[i];
@@ -201,15 +243,21 @@ static robot_cache_entry_t *remote_find_robot_slot(uint8_t robot_id)
         if (!robot_cache_[i].valid && free_slot == NULL) {
             free_slot = &robot_cache_[i];
         }
+        if (robot_cache_[i].last_seen_ms < oldest_slot->last_seen_ms) {
+            oldest_slot = &robot_cache_[i];
+        }
     }
-    return (free_slot != NULL) ? free_slot : &robot_cache_[0];
+    (void)now_ms;
+    return (free_slot != NULL) ? free_slot : oldest_slot;
 }
 
 static void remote_handle_beacon(const rf_packet_t *pkt, uint32_t now_ms)
 {
     uint32_t age_ms = 0;
     uint8_t  age_100ms;
-    robot_cache_entry_t *slot = remote_find_robot_slot(pkt->src_id);
+    robot_cache_entry_t *slot;
+    remote_expire_robot_cache(now_ms);
+    slot = remote_find_robot_slot(pkt->src_id, now_ms);
 
     if (slot->valid) {
         age_ms = now_ms - slot->last_seen_ms;
@@ -252,7 +300,11 @@ static void remote_handle_pc_frame(const uart_frame_t *frame, uint32_t now_ms)
         connected_robot_id_ = frame->payload[0];
         radio_link_session_reset();
         session_reconnecting_ = false;   /* explicit user action, restart fresh */
-        if (app_send_rf(connected_robot_id_, RF_TYPE_CONNECT_REQ, NULL, 0u)) {
+        /* Fresh token: simple LCG seeded by millis() — effectively random
+         * per-connect without needing a real RNG. */
+        current_session_token_ = (uint8_t)((now_ms * 1103u + 12345u) >> 8);
+        if (app_send_rf(connected_robot_id_, RF_TYPE_CONNECT_REQ,
+                        &current_session_token_, 1u)) {
             connect_request_ms_    = now_ms;
             connect_last_retry_ms_ = now_ms;
             connect_retry_count_   = 0u;
@@ -326,6 +378,18 @@ static void remote_periodic(uint32_t now_ms)
         last_rx_kick_ms_ = now_ms;
     }
 
+    /* App-level RX watchdog — if we've heard nothing for too long despite
+     * expecting steady traffic, the CC1120 is probably wedged in a state
+     * the defensive SRX can't recover from. Full re-init is the last
+     * resort. Only armed in active states (where traffic is expected). */
+    if ((state_ == APP_REMOTE_SESSION || state_ == APP_REMOTE_PASSTHROUGH) &&
+        (now_ms - last_any_rx_ms_) >= RX_SILENCE_REINIT_MS) {
+        (void)cc1120_init_minimal();
+        cc1120_events_clear_all();
+        cc1120_set_rx();
+        last_any_rx_ms_ = now_ms;   /* don't re-trigger immediately */
+    }
+
     /* Try to flush any coalesced DATA over the ARQ. Same for SESSION (typed
      * by user via DATA_TX frames) and PASSTHROUGH (typed raw on the UART). */
     if (state_ == APP_REMOTE_SESSION || state_ == APP_REMOTE_PASSTHROUGH) {
@@ -359,11 +423,13 @@ static void remote_periodic(uint32_t now_ms)
      * lost. We retry every CONNECT_RETRY_INTERVAL_MS up to CONNECT_MAX_RETRIES
      * times before giving up. The whole budget is bounded by
      * CONNECT_TIMEOUT_MS so the TUI doesn't hang too long if the robot is
-     * really unreachable. */
+     * really unreachable. Retries reuse current_session_token_ so the
+     * robot treats them as benign retransmits, not a fresh session. */
     if (state_ == APP_REMOTE_CONNECTING &&
         connect_retry_count_ < CONNECT_MAX_RETRIES &&
         (now_ms - connect_last_retry_ms_) >= CONNECT_RETRY_INTERVAL_MS) {
-        if (app_send_rf(connected_robot_id_, RF_TYPE_CONNECT_REQ, NULL, 0u)) {
+        if (app_send_rf(connected_robot_id_, RF_TYPE_CONNECT_REQ,
+                        &current_session_token_, 1u)) {
             connect_last_retry_ms_ = now_ms;
             connect_retry_count_++;
         }
@@ -397,7 +463,8 @@ static void remote_periodic(uint32_t now_ms)
      * watchdog while we're trying. */
     if (state_ == APP_REMOTE_PASSTHROUGH && passthrough_reconnecting_ &&
         (now_ms - passthrough_last_retry_ms_) >= 1000u) {
-        (void)app_send_rf(connected_robot_id_, RF_TYPE_CONNECT_REQ, NULL, 0u);
+        (void)app_send_rf(connected_robot_id_, RF_TYPE_CONNECT_REQ,
+                          &current_session_token_, 1u);
         passthrough_last_retry_ms_ = now_ms;
         last_robot_rx_ms_          = now_ms;
     }
@@ -411,7 +478,8 @@ static void remote_periodic(uint32_t now_ms)
             return;
         }
         if ((now_ms - session_last_retry_ms_) >= SESSION_RECONNECT_INTERVAL_MS) {
-            (void)app_send_rf(connected_robot_id_, RF_TYPE_CONNECT_REQ, NULL, 0u);
+            (void)app_send_rf(connected_robot_id_, RF_TYPE_CONNECT_REQ,
+                              &current_session_token_, 1u);
             session_last_retry_ms_ = now_ms;
             last_robot_rx_ms_      = now_ms;
         }
@@ -492,10 +560,18 @@ static void remote_consume_rf(const rf_packet_t *pkt, uint32_t now_ms)
 
     if (state_ == APP_REMOTE_CONNECTING && pkt->type == RF_TYPE_CONNECT_OK &&
         pkt->src_id == connected_robot_id_) {
+        /* Verify the OK carries our token. An empty payload or a token
+         * mismatch is a stale OK from an earlier session — ignore it so
+         * we don't latch the wrong session. The retry loop will keep
+         * sending fresh CONNECT_REQs and eventually a matching OK lands. */
+        if (pkt->payload_len < 1u || pkt->payload[0] != current_session_token_) {
+            return;
+        }
         protocol_send_connected(connected_robot_id_);
         last_robot_rx_ms_   = now_ms;
         last_stats_push_ms_ = now_ms;
         last_rtt_ping_ms_   = now_ms;
+        last_any_rx_ms_     = now_ms;   /* arm the RX watchdog */
         rtt_ping_pending_   = false;
         state_              = APP_REMOTE_SESSION;
         return;
@@ -503,9 +579,11 @@ static void remote_consume_rf(const rf_packet_t *pkt, uint32_t now_ms)
 
     /* Sticky-passthrough reconnect succeeded: write a confirmation banner
      * to the host UART so the user knows the shell is live again, and
-     * resume normal passthrough operation. */
+     * resume normal passthrough operation. Token check guards against a
+     * stray OK from a stale session. */
     if (state_ == APP_REMOTE_PASSTHROUGH && passthrough_reconnecting_ &&
-        pkt->type == RF_TYPE_CONNECT_OK && pkt->src_id == connected_robot_id_) {
+        pkt->type == RF_TYPE_CONNECT_OK && pkt->src_id == connected_robot_id_ &&
+        pkt->payload_len >= 1u && pkt->payload[0] == current_session_token_) {
         static const char banner[] = "\r\n*** reconnected ***\r\n";
         uart_write_bytes((const uint8_t *)banner, sizeof(banner) - 1u);
         passthrough_reconnecting_ = false;
@@ -519,7 +597,8 @@ static void remote_consume_rf(const rf_packet_t *pkt, uint32_t now_ms)
      * the TUI's Events log shows "CONNECTED" again and the Connection
      * panel turns green. */
     if (state_ == APP_REMOTE_SESSION && session_reconnecting_ &&
-        pkt->type == RF_TYPE_CONNECT_OK && pkt->src_id == connected_robot_id_) {
+        pkt->type == RF_TYPE_CONNECT_OK && pkt->src_id == connected_robot_id_ &&
+        pkt->payload_len >= 1u && pkt->payload[0] == current_session_token_) {
         protocol_send_connected(connected_robot_id_);
         session_reconnecting_ = false;
         last_robot_rx_ms_     = now_ms;
@@ -599,7 +678,21 @@ static void robot_consume_rf(const rf_packet_t *pkt, uint32_t now_ms)
         if (pkt->type == RF_TYPE_CONNECT_REQ) {
             connected_remote_id_ = pkt->src_id;
             radio_link_session_reset();
-            (void)app_send_rf(connected_remote_id_, RF_TYPE_CONNECT_OK, NULL, 0u);
+            /* Latch the session token (if present). Old-firmware peers
+             * may send an empty CONNECT_REQ payload — treat that as
+             * token=0 / valid=false so re-entries reset the session by
+             * default (safer than blindly dedup-ing). */
+            if (pkt->payload_len >= 1u) {
+                current_session_token_       = pkt->payload[0];
+                current_session_token_valid_ = true;
+            } else {
+                current_session_token_       = 0u;
+                current_session_token_valid_ = false;
+            }
+            /* Echo the token back in CONNECT_OK so the remote can verify
+             * it's the answer to its own request, not a stray one. */
+            (void)app_send_rf(connected_remote_id_, RF_TYPE_CONNECT_OK,
+                              &current_session_token_, 1u);
             last_remote_rx_ms_ = now_ms;
             state_             = APP_ROBOT_CONNECTED;
         }
@@ -622,15 +715,36 @@ static void robot_consume_rf(const rf_packet_t *pkt, uint32_t now_ms)
         break;
 
     case RF_TYPE_DISCONNECT:
-        connected_remote_id_ = 0u;
+        connected_remote_id_         = 0u;
+        current_session_token_valid_ = false;
         radio_link_session_reset();
         state_ = APP_ROBOT_ADVERTISING;
         break;
 
-    case RF_TYPE_CONNECT_REQ:
-        /* Re-ACK in case our previous CONNECT_OK was lost. */
-        (void)app_send_rf(connected_remote_id_, RF_TYPE_CONNECT_OK, NULL, 0u);
+    case RF_TYPE_CONNECT_REQ: {
+        /* A CONNECT_REQ arriving while we're already CONNECTED is one of
+         *   (a) a retry of the same connect (token matches our stored
+         *       value) — just re-ACK, don't reset state, the existing
+         *       session continues
+         *   (b) a brand-new session (token differs / no token) because
+         *       the remote rebooted between our session start and now.
+         *       We MUST reset the session state, otherwise the remote's
+         *       fresh seq=0 races our stale last_rx_data_seq_=0 and the
+         *       first DATA of the new session gets dedup'd into oblivion.
+         */
+        uint8_t rx_token = (pkt->payload_len >= 1u) ? pkt->payload[0] : 0u;
+        bool    rx_token_valid = (pkt->payload_len >= 1u);
+        bool    is_retry = current_session_token_valid_ && rx_token_valid &&
+                           (rx_token == current_session_token_);
+        if (!is_retry) {
+            radio_link_session_reset();
+            current_session_token_       = rx_token;
+            current_session_token_valid_ = rx_token_valid;
+        }
+        (void)app_send_rf(connected_remote_id_, RF_TYPE_CONNECT_OK,
+                          &current_session_token_, 1u);
         break;
+    }
 
     case RF_TYPE_STATS:
         if (pkt->payload_len >= 2u && pkt->payload[0] == RF_STATS_PING_REQ) {
@@ -680,10 +794,14 @@ static void app_consume_rf(uint32_t now_ms)
     }
 
     for (i = 0u; i < 4u; i++) {
-        if (!radio_link_receive(&pkt)) {
+        if (!radio_link_receive(&pkt, now_ms)) {
             break;
         }
 #if MODEM_ROLE == MODEM_ROLE_REMOTE
+        /* Any accepted packet (CRC OK, our net, addressed to us or
+         * broadcast) feeds the app-level RX watchdog so we know the
+         * chip is still demodulating. */
+        last_any_rx_ms_ = now_ms;
         remote_consume_rf(&pkt, now_ms);
 #else
         robot_consume_rf(&pkt, now_ms);
@@ -718,6 +836,8 @@ void app_init(void)
         session_last_retry_ms_     = 0u;
         passthrough_reconnecting_  = false;
         passthrough_last_retry_ms_ = 0u;
+        current_session_token_     = 0u;
+        last_any_rx_ms_            = 0u;
         for (i = 0u; i < MAX_DISCOVERED_ROBOTS; i++) {
             robot_cache_[i].valid        = false;
             robot_cache_[i].robot_id     = 0u;
@@ -726,9 +846,11 @@ void app_init(void)
         }
     }
 #else
-    connected_remote_id_ = 0u;
-    last_beacon_ms_      = 0u;
-    last_remote_rx_ms_   = 0u;
+    connected_remote_id_         = 0u;
+    last_beacon_ms_              = 0u;
+    last_remote_rx_ms_           = 0u;
+    current_session_token_       = 0u;
+    current_session_token_valid_ = false;
 #endif
 }
 
@@ -811,23 +933,34 @@ void app_task(void)
         }
         if (radio_link_arq_tick(now_ms)) {
             /* ARQ gave up. Treat as link lost. */
-            connected_remote_id_ = 0u;
+            connected_remote_id_         = 0u;
+            current_session_token_valid_ = false;
             radio_link_session_reset();
             state_ = APP_ROBOT_ADVERTISING;
             break;
         }
         if ((now_ms - last_remote_rx_ms_) >= LINK_LOST_TIMEOUT_MS) {
-            connected_remote_id_ = 0u;
+            connected_remote_id_         = 0u;
+            current_session_token_valid_ = false;
             radio_link_session_reset();
             state_ = APP_ROBOT_ADVERTISING;
             break;
         }
-        /* Keep beaconing even while connected — gives the REMOTE a strong
-         * keep-alive signal (2 Hz) so a single dropped RTT pong doesn't
-         * trigger a 6 s LINK_TIMEOUT. The broadcast beacon also helps a
-         * third REMOTE rediscover this robot if it shows up later. Light
-         * cost: ~10 ms air time every 500 ms = 2 % duty cycle. */
-        if ((now_ms - last_beacon_ms_) >= BEACON_INTERVAL_MS) {
+        /* Keep beaconing even while connected, but at half the rate (1 Hz)
+         * compared to ADVERTISING. The remote's 1 Hz RTT-ping already
+         * covers the robot-side keep-alive, so the beacon only needs to
+         * be frequent enough to refresh the remote's last_robot_rx_ms_
+         * watchdog (6 s = LINK_LOST_TIMEOUT). Two extra constraints to
+         * reduce collisions on a marginal link:
+         *   - skip the beacon if an ARQ DATA is pending (don't insert TX
+         *     between our DATA and its incoming ACK, which would force
+         *     the remote to retransmit)
+         *   - skip if the coalescing buffer has DATA queued, the next
+         *     tick will TX that instead — DATA is more useful than a
+         *     beacon at that point. */
+        if ((now_ms - last_beacon_ms_) >= BEACON_INTERVAL_SESSION_MS &&
+            !radio_link_arq_pending() &&
+            radio_link_data_buf_count() == 0u) {
             if (app_send_rf(RF_BROADCAST_ID, RF_TYPE_BEACON, NULL, 0u)) {
                 led_toggle();
             }

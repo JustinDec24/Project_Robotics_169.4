@@ -47,9 +47,13 @@ typedef struct {
 } rf_packet_t;
 
 typedef struct {
-    int8_t   rssi_avg;     /* exponentially smoothed, dBm-ish (signed)   */
-    uint8_t  per_pct;      /* percent of DATA frames that gave up        */
-    uint16_t rtt_ms;       /* last measured RTT (ping)                   */
+    int8_t   rssi_avg;        /* exponentially smoothed, dBm-ish (signed) */
+    uint8_t  per_pct;         /* percent of DATA frames that gave up      */
+    uint16_t rtt_ms;          /* last measured RTT (ping)                 */
+    uint8_t  retries_x10;     /* avg retries / acked DATA, x10 (so 23
+                               * means 2.3 retries on average — an early
+                               * indicator of link degradation, well
+                               * before PER starts climbing).             */
 } link_metrics_t;
 
 /* Outcome of feeding an RX DATA packet to the ARQ layer. */
@@ -68,8 +72,14 @@ void    radio_link_session_reset(void);
 bool    radio_link_send(uint8_t dst_id, uint8_t type,
                         const uint8_t *payload, uint8_t payload_len);
 
-/* ---- Receive one parsed packet from the FIFO -----------------------------*/
-bool    radio_link_receive(rf_packet_t *pkt);
+/* ---- Receive one parsed packet from the FIFO -----------------------------
+ * Two-phase read protects against premature flush when a packet is still
+ * being demodulated: if only the LEN byte is in the FIFO and the body
+ * hasn't arrived yet, we stash the LEN and return false (no packet yet)
+ * instead of flushing — the body bytes are then read on a subsequent call
+ * once they've arrived. A timeout (RX_PARTIAL_TIMEOUT_MS) is applied so a
+ * truly stuck FIFO eventually gets flushed and resynced. */
+bool    radio_link_receive(rf_packet_t *pkt, uint32_t now_ms);
 
 /* ---- ARQ (DATA only) -----------------------------------------------------*/
 /* Submit a DATA payload for transmission with ARQ. Returns false if a

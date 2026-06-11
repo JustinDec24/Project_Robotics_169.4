@@ -126,14 +126,16 @@ void protocol_send_disconnected(uint8_t reason)
     protocol_send_frame(UART_MSG_DISCONNECTED, &reason, 1);
 }
 
-void protocol_send_stats(uint8_t rssi_avg, uint8_t per_pct, uint16_t rtt_ms)
+void protocol_send_stats(uint8_t rssi_avg, uint8_t per_pct, uint16_t rtt_ms,
+                         uint8_t retries_x10)
 {
-    uint8_t buf[4];
+    uint8_t buf[5];
     buf[0] = rssi_avg;
     buf[1] = per_pct;
     buf[2] = (uint8_t)(rtt_ms & 0xFFu);
     buf[3] = (uint8_t)((rtt_ms >> 8) & 0xFFu);
-    protocol_send_frame(UART_MSG_STATS, buf, 4);
+    buf[4] = retries_x10;
+    protocol_send_frame(UART_MSG_STATS, buf, 5);
 }
 
 void protocol_send_data_rx(const uint8_t *data, uint8_t len)

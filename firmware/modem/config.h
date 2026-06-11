@@ -66,6 +66,12 @@
 
 /* ---- Timing (ms) ---------------------------------------------------------*/
 #define BEACON_INTERVAL_MS          500u
+/* In CONNECTED we halve the beacon rate (1 Hz instead of 2 Hz). The RTT
+ * ping from the remote already provides 1 Hz of TX-side keep-alive, so a
+ * single 1 Hz beacon from the robot is enough RX-side keep-alive to cover
+ * an occasional lost RTT pong. Halving the beacon rate halves the
+ * collision window against the remote's DATA/STATS-PING transmits. */
+#define BEACON_INTERVAL_SESSION_MS  1000u
 /* CONNECT_REQ retry strategy — sized to handle marginal-link conditions
  * (PER 20-40 % at -85 to -95 dBm RSSI). 12 retries × 250 ms = 3 s budget
  * with TIMEOUT a touch above to absorb the last RTT. With these values
@@ -77,6 +83,14 @@
 #define LINK_LOST_TIMEOUT_MS        6000u  /* 12 beacon periods worth */
 #define STATS_PUSH_INTERVAL_MS      500u
 #define RTT_PING_INTERVAL_MS        1000u
+/* App-level RX watchdog: in an active session we expect packets every
+ * ~1 s (1 Hz beacon + 1 Hz RTT pong, possibly DATA). If absolutely
+ * nothing is received for RX_SILENCE_REINIT_MS the chip is presumed
+ * wedged in a state our defensive SRX can't unstick, and a full
+ * cc1120_init_minimal() re-run is triggered. Longer than the
+ * 6 s LINK_LOST_TIMEOUT so we don't fire on the same event the
+ * sticky-reconnect already handles. */
+#define RX_SILENCE_REINIT_MS       10000u
 
 /* ---- Data coalescing -----------------------------------------------------*/
 /* Flush threshold = MAX_RF_PAYLOAD to maximize the bytes-per-ARQ-cycle ratio
@@ -93,9 +107,23 @@
  * At 38.4 kbps it drops to ~15 ms. We size for the slow case with margin. */
 #define ARQ_ACK_TIMEOUT_MS          300u  /* a bit more headroom than 200 */
 #define ARQ_MAX_RETRIES             6u    /* doubled — fewer ARQ_FAILED disconnects */
-#define ARQ_BACKOFF_MAX_MS          16u   /* random jitter before retransmit */
+/* Random jitter must be ≥ a frame air time (50 byte DATA @ 4.8 kbps ≈
+ * 100 ms) so two colliding nodes desync — a 16-ms jitter just shifts
+ * the collision to the next retransmit. */
+#define ARQ_BACKOFF_MAX_MS          120u
+/* Per-retry growth: each retry adds 150 ms to the ACK deadline. So the
+ * timeline becomes 300, 450, 600, 750, ... ms — same retry budget but
+ * spread out, giving a noisy channel time to clear. */
+#define ARQ_BACKOFF_GROWTH_MS       150u
 
 /* ---- Scan cache ----------------------------------------------------------*/
 #define MAX_DISCOVERED_ROBOTS       8u
+/* A cache entry is considered stale (and will be removed from the host's
+ * Discovered Robots panel) if no beacon has been heard from that robot
+ * for SCAN_CACHE_EXPIRY_MS. With BEACON_INTERVAL_MS = 500 ms this
+ * tolerates ~20 missed beacons (10 s) before the robot disappears from
+ * the list — long enough to ride out a marginal-link burst, short enough
+ * to drop a powered-off robot promptly. */
+#define SCAN_CACHE_EXPIRY_MS       10000u
 
 #endif /* CONFIG_H */

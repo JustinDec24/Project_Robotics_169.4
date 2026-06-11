@@ -41,6 +41,7 @@ int main(void)
 
     app_init();
     for (;;) {
+        CLRWDT();   /* kick the hardware watchdog — see board.c WDTE=ON */
         app_task();
     }
     return 0;

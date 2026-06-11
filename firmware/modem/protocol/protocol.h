@@ -66,7 +66,8 @@ void protocol_send_frame(uint8_t msg_type,
 void protocol_send_scan_result(uint8_t robot_id, uint8_t rssi, uint8_t age_100ms);
 void protocol_send_connected(uint8_t robot_id);
 void protocol_send_disconnected(uint8_t reason);
-void protocol_send_stats(uint8_t rssi_avg, uint8_t per_pct, uint16_t rtt_ms);
+void protocol_send_stats(uint8_t rssi_avg, uint8_t per_pct, uint16_t rtt_ms,
+                         uint8_t retries_x10);
 void protocol_send_data_rx(const uint8_t *data, uint8_t len);
 void protocol_send_log(const char *text);
 void protocol_send_tx_ack(void);

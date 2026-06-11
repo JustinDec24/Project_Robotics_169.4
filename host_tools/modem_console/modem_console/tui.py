@@ -30,6 +30,10 @@ class LinkStats:
     rssi_avg_dbm: Optional[int] = None
     per_pct: Optional[int] = None
     rtt_ms: Optional[int] = None
+    # Average ARQ retries per DATA frame, fixed-point (firmware sends
+    # retries * 10 in one byte). 0 = perfect, 5+ = link is degrading,
+    # PER will start climbing if it gets worse.
+    retries_avg: Optional[float] = None
 
 
 @dataclass
@@ -73,6 +77,15 @@ class StatusPanel(Static):
                if state.stats.per_pct is not None else "—")
         rtt = (f"{state.stats.rtt_ms} ms"
                if state.stats.rtt_ms is not None else "—")
+        if state.stats.retries_avg is None:
+            retries = "—"
+        else:
+            # color-grade so a degrading link pops visually
+            v = state.stats.retries_avg
+            color = ("green" if v < 0.5 else
+                     "yellow" if v < 2.0 else
+                     "red")
+            retries = f"[{color}]{v:.1f}[/]"
         last_tx = _fmt_age(state.last_tx_at)
         last_rx = _fmt_age(state.last_rx_at)
         text = (
@@ -80,6 +93,7 @@ class StatusPanel(Static):
             f"[dim]RSSI avg[/]   {rssi}\n"
             f"[dim]PER[/]        {per}\n"
             f"[dim]RTT[/]        {rtt}\n"
+            f"[dim]Retries[/]    {retries}\n"
             f"[dim]TX count[/]   {state.tx_count}    "
             f"[dim]RX count[/] {state.rx_count}\n"
             f"[dim]Last TX[/]    {last_tx}\n"
@@ -379,9 +393,14 @@ class ModemConsoleApp(App):
             rssi_avg = _decode_rssi(p[0])
             per = p[1]
             rtt = p[2] | (p[3] << 8)
+            # Retries metric is the 5th byte (fixed-point x10). Optional
+            # for backward compatibility with older firmware that only
+            # sends 4 bytes.
+            retries_avg = (p[4] / 10.0) if len(p) >= 5 else None
             self.state.stats = LinkStats(rssi_avg_dbm=rssi_avg,
                                          per_pct=per,
-                                         rtt_ms=rtt)
+                                         rtt_ms=rtt,
+                                         retries_avg=retries_avg)
             self._refresh_status()
         elif t == MsgType.TX_ACK:
             # Robot acknowledged our last DATA frame — surface a clean
